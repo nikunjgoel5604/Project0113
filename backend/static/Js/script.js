@@ -1,14 +1,16 @@
-async function uploadFile() {
+const uploadBtn = document.getElementById("uploadBtn");
+
+uploadBtn.addEventListener("click", async () => {
 
     const fileInput = document.getElementById("fileInput");
     const file = fileInput.files[0];
 
     if (!file) {
-        alert("Please select file");
+        alert("Select a file first");
         return;
     }
 
-    let formData = new FormData();
+    const formData = new FormData();
     formData.append("file", file);
 
     const response = await fetch("/upload", {
@@ -20,46 +22,52 @@ async function uploadFile() {
 
     console.log(data);
 
-    // OVERVIEW
-    document.getElementById("rows").innerText = data.overview.rows;
-    document.getElementById("columns").innerText = data.overview.columns;
-    document.getElementById("numeric").innerText =
+    document.getElementById("rows").innerText =
+        data.overview.rows;
+
+    document.getElementById("columns").innerText =
+        data.overview.columns;
+
+    document.getElementById("numericColumns").innerText =
         data.overview.numeric_columns.join(", ");
-    document.getElementById("categorical").innerText =
+
+    document.getElementById("categoricalColumns").innerText =
         data.overview.categorical_columns.join(", ");
 
-    // DATA QUALITY
     document.getElementById("duplicates").innerText =
         data.data_quality.duplicates;
 
-    let missingHTML = "";
-    for (let key in data.data_quality.missing_values) {
-        missingHTML += `${key}: ${data.data_quality.missing_values[key]}<br>`;
-    }
-    document.getElementById("missing").innerHTML = missingHTML;
+    const insightBox = document.getElementById("insights");
+    insightBox.innerHTML = "";
 
-    // INSIGHTS
-    let insightsHTML = "";
     data.insights.forEach(i => {
-        insightsHTML += `<li>${i}</li>`;
+        const li = document.createElement("li");
+        li.innerText = i;
+        insightBox.appendChild(li);
     });
-    document.getElementById("insights").innerHTML = insightsHTML;
 
-    // PREVIEW TABLE
-    let table = "<table border='1'><tr>";
-    Object.keys(data.preview[0]).forEach(col => {
-        table += `<th>${col}</th>`;
-    });
-    table += "</tr>";
+    const previewDiv = document.getElementById("preview");
+    previewDiv.innerHTML = "";
 
-    data.preview.forEach(row => {
-        table += "<tr>";
-        Object.values(row).forEach(val => {
-            table += `<td>${val}</td>`;
+    if (data.preview.length > 0) {
+
+        let table = "<table border='1'><tr>";
+
+        Object.keys(data.preview[0]).forEach(col => {
+            table += `<th>${col}</th>`;
         });
-        table += "</tr>";
-    });
 
-    table += "</table>";
-    document.getElementById("preview").innerHTML = table;
-}
+        table += "</tr>";
+
+        data.preview.forEach(row => {
+            table += "<tr>";
+            Object.values(row).forEach(val => {
+                table += `<td>${val}</td>`;
+            });
+            table += "</tr>";
+        });
+
+        table += "</table>";
+        previewDiv.innerHTML = table;
+    }
+});

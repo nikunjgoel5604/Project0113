@@ -9,25 +9,24 @@
 
 <div class="container">
 
-    <div class="upload-card">
+    <div class="card">
         <h1>Nikunj Data Analyzer</h1>
 
         <input type="file" id="fileInput">
-        <button onclick="uploadFile()">Upload File</button>
+        <button id="uploadBtn">Upload File</button>
     </div>
 
     <div class="card">
         <h2>Dataset Overview</h2>
-        <p>Rows: <span id="rows"></span></p>
-        <p>Columns: <span id="columns"></span></p>
-        <p>Numeric Columns: <span id="numeric"></span></p>
-        <p>Categorical Columns: <span id="categorical"></span></p>
+        Rows: <span id="rows"></span><br>
+        Columns: <span id="columns"></span><br>
+        Numeric Columns: <span id="numericColumns"></span><br>
+        Categorical Columns: <span id="categoricalColumns"></span>
     </div>
 
     <div class="card">
         <h2>Data Quality</h2>
-        <div id="missing"></div>
-        <p>Duplicates: <span id="duplicates"></span></p>
+        Duplicates: <span id="duplicates"></span>
     </div>
 
     <div class="card">
