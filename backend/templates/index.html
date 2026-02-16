@@ -1,41 +1,46 @@
 <!DOCTYPE html>
-<html lang="en">
+<html>
 <head>
     <title>Nikunj Data Analyzer</title>
-<link rel="stylesheet" href="/static/CSS/style.css">
-
+    <link rel="stylesheet" href="/static/CSS/style.css">
 </head>
 
 <body>
 
-    <div class="container">
+<div class="container">
 
-        <div class="upload-card">
-            <h1>Nikunj Data Analyzer</h1>
+    <div class="upload-card">
+        <h1>Nikunj Data Analyzer</h1>
 
-            <p>Upload CSV, Excel or XML file</p>
-
-            <input type="file" id="fileInput">
-
-            <button>Upload File</button>
-        </div>
-
-        <div class="result-card">
-            <h3>File Details</h3>
-
-            <p>File Name: <span id="fileName">--</span></p>
-            <p>File Size: <span id="fileSize">--</span></p>
-            <p>File Type: <span id="fileType">--</span></p>
-
-            <p>Rows: <span id="rows">--</span></p>
-            <p>Columns: <span id="columns">--</span></p>
-            <p>Column Names: <span id="columnNames">--</span></p>
-
-            <h3>Dataset Preview</h3>
-            <div id="tableContainer"></div>
-        </div>
-
+        <input type="file" id="fileInput">
+        <button onclick="uploadFile()">Upload File</button>
     </div>
+
+    <div class="card">
+        <h2>Dataset Overview</h2>
+        <p>Rows: <span id="rows"></span></p>
+        <p>Columns: <span id="columns"></span></p>
+        <p>Numeric Columns: <span id="numeric"></span></p>
+        <p>Categorical Columns: <span id="categorical"></span></p>
+    </div>
+
+    <div class="card">
+        <h2>Data Quality</h2>
+        <div id="missing"></div>
+        <p>Duplicates: <span id="duplicates"></span></p>
+    </div>
+
+    <div class="card">
+        <h2>Insights</h2>
+        <ul id="insights"></ul>
+    </div>
+
+    <div class="card">
+        <h2>Dataset Preview</h2>
+        <div id="preview"></div>
+    </div>
+
+</div>
 
 <script src="/static/Js/script.js"></script>
 
