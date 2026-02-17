@@ -1,30 +1,49 @@
+// ================= GLOBAL VARIABLES =================
 let histChart = null;
 let catChart = null;
+let heatmapChart = null;
+let missingChart = null;
+
 let globalData = null;
+let chartScale = 1;
 
 
-// ================= UPLOAD =================
+// ================= UPLOAD DATASET =================
 document.getElementById("uploadBtn")
 .addEventListener("click", async () => {
 
     const file = document.getElementById("fileInput").files[0];
-    if (!file) return alert("Select file first");
+    if (!file) {
+        alert("Select file first");
+        return;
+    }
 
     const formData = new FormData();
     formData.append("file", file);
 
-    const response = await fetch("/upload", {
-        method: "POST",
-        body: formData
-    });
+    try {
 
-    const data = await response.json();
-    globalData = data;
+        const response = await fetch("/upload", {
+            method: "POST",
+            body: formData
+        });
 
-    loadOverview(data);
-    loadDropdowns(data);
-    loadPreview(data.preview);
-    drawCharts(data.preview);
+        const data = await response.json();
+        globalData = data;
+
+        loadOverview(data);
+        loadInsights(data);
+        loadPreview(data);
+        loadDropdowns(data);
+
+        drawCharts(data);
+        drawHeatmap(data);
+        drawMissing(data);
+
+    } catch (err) {
+        console.error(err);
+        alert("Error processing dataset");
+    }
 });
 
 
@@ -43,8 +62,54 @@ function loadOverview(data) {
     document.getElementById("categoricalColumns").innerText =
         data.overview.categorical_columns.join(", ");
 
-    document.getElementById("duplicates").innerText =
-        data.data_quality.duplicates;
+    if (document.getElementById("duplicates")) {
+        document.getElementById("duplicates").innerText =
+            data.data_quality.duplicates;
+    }
+}
+
+
+// ================= INSIGHTS =================
+function loadInsights(data) {
+
+    const insightBox = document.getElementById("insights");
+    insightBox.innerHTML = "";
+
+    data.insights.forEach(i => {
+        const li = document.createElement("li");
+        li.innerText = i;
+        insightBox.appendChild(li);
+    });
+}
+
+
+// ================= PREVIEW TABLE =================
+function loadPreview(data) {
+
+    const previewDiv = document.getElementById("preview");
+    previewDiv.innerHTML = "";
+
+    if (!data.preview || data.preview.length === 0) return;
+
+    let table = "<table><tr>";
+
+    Object.keys(data.preview[0]).forEach(col => {
+        table += `<th>${col}</th>`;
+    });
+
+    table += "</tr>";
+
+    data.preview.forEach(row => {
+        table += "<tr>";
+        Object.values(row).forEach(val => {
+            table += `<td>${val ?? ""}</td>`;
+        });
+        table += "</tr>";
+    });
+
+    table += "</table>";
+
+    previewDiv.innerHTML = table;
 }
 
 
@@ -54,18 +119,24 @@ function loadDropdowns(data) {
     const numSelect = document.getElementById("numericSelect");
     const catSelect = document.getElementById("categorySelect");
     const filterColumn = document.getElementById("filterColumn");
+    const xAxis = document.getElementById("xAxis");
+    const yAxis = document.getElementById("yAxis");
 
     numSelect.innerHTML = "";
     catSelect.innerHTML = "";
     filterColumn.innerHTML = "";
+    xAxis.innerHTML = "";
+    yAxis.innerHTML = "";
 
     data.overview.numeric_columns.forEach(col => {
-        numSelect.innerHTML += `<option value="${col}">${col}</option>`;
+        numSelect.innerHTML += `<option>${col}</option>`;
+        xAxis.innerHTML += `<option>${col}</option>`;
+        yAxis.innerHTML += `<option>${col}</option>`;
     });
 
     data.overview.categorical_columns.forEach(col => {
-        catSelect.innerHTML += `<option value="${col}">${col}</option>`;
-        filterColumn.innerHTML += `<option value="${col}">${col}</option>`;
+        catSelect.innerHTML += `<option>${col}</option>`;
+        filterColumn.innerHTML += `<option>${col}</option>`;
     });
 
     updateFilterValues();
@@ -78,21 +149,23 @@ document.getElementById("filterColumn")
 
 function updateFilterValues() {
 
+    if (!globalData) return;
+
     const col =
         document.getElementById("filterColumn").value;
+
+    const values =
+        globalData.visualization.category_counts[col];
 
     const filterValue =
         document.getElementById("filterValue");
 
     filterValue.innerHTML = "";
 
-    // unique values from preview data
-    const uniqueValues = [
-        ...new Set(globalData.preview.map(r => r[col]))
-    ];
+    if (!values) return;
 
-    uniqueValues.forEach(v => {
-        filterValue.innerHTML += `<option value="${v}">${v}</option>`;
+    Object.keys(values).forEach(v => {
+        filterValue.innerHTML += `<option>${v}</option>`;
     });
 }
 
@@ -100,55 +173,12 @@ function updateFilterValues() {
 // ================= APPLY FILTER =================
 document.getElementById("applyFilter")
 .addEventListener("click", () => {
-
-    const filterCol =
-        document.getElementById("filterColumn").value;
-
-    const filterVal =
-        document.getElementById("filterValue").value;
-
-    // FILTER DATA
-    const filteredData =
-        globalData.preview.filter(
-            row => String(row[filterCol]) === String(filterVal)
-        );
-
-    loadPreview(filteredData);
-    drawCharts(filteredData);
+    drawCharts(globalData);
 });
 
 
-// ================= PREVIEW TABLE =================
-function loadPreview(dataRows) {
-
-    const previewDiv = document.getElementById("preview");
-    previewDiv.innerHTML = "";
-
-    if (!dataRows.length) return;
-
-    let table = "<table border='1'><tr>";
-
-    Object.keys(dataRows[0]).forEach(col => {
-        table += `<th>${col}</th>`;
-    });
-
-    table += "</tr>";
-
-    dataRows.forEach(row => {
-        table += "<tr>";
-        Object.values(row).forEach(val => {
-            table += `<td>${val}</td>`;
-        });
-        table += "</tr>";
-    });
-
-    table += "</table>";
-    previewDiv.innerHTML = table;
-}
-
-
-// ================= DRAW CHARTS =================
-function drawCharts(dataRows) {
+// ================= MAIN CHARTS =================
+function drawCharts(data) {
 
     const numCol =
         document.getElementById("numericSelect").value;
@@ -156,11 +186,7 @@ function drawCharts(dataRows) {
     const catCol =
         document.getElementById("categorySelect").value;
 
-    // ---------- HISTOGRAM ----------
-    const numericValues =
-        dataRows.map(r => Number(r[numCol]))
-                .filter(v => !isNaN(v));
-
+    // HISTOGRAM
     if (histChart) histChart.destroy();
 
     histChart = new Chart(
@@ -168,36 +194,155 @@ function drawCharts(dataRows) {
         {
             type: "bar",
             data: {
-                labels: numericValues.slice(0,20),
+                labels:
+                    data.visualization.histograms[numCol].slice(0,20),
                 datasets: [{
                     label: numCol,
-                    data: numericValues.slice(0,20)
+                    data:
+                        data.visualization.histograms[numCol].slice(0,20)
                 }]
-            }
+            },
+            options: { responsive: true }
         }
     );
 
-
-    // ---------- CATEGORY COUNT ----------
-    const counts = {};
-    dataRows.forEach(r => {
-        const key = r[catCol];
-        counts[key] = (counts[key] || 0) + 1;
-    });
-
+    // CATEGORY COUNT
     if (catChart) catChart.destroy();
+
+    const obj =
+        data.visualization.category_counts[catCol];
 
     catChart = new Chart(
         document.getElementById("catChart"),
         {
             type: "bar",
             data: {
-                labels: Object.keys(counts),
+                labels: Object.keys(obj),
                 datasets: [{
                     label: catCol,
-                    data: Object.values(counts)
+                    data: Object.values(obj)
+                }]
+            },
+            options: { responsive: true }
+        }
+    );
+}
+
+
+// ================= ADVANCED CHART =================
+document.getElementById("updateChart")
+.addEventListener("click", () => {
+    drawAdvancedChart(globalData);
+});
+
+function drawAdvancedChart(data) {
+
+    const type =
+        document.getElementById("chartType").value;
+
+    const xCol =
+        document.getElementById("xAxis").value;
+
+    const yCol =
+        document.getElementById("yAxis").value;
+
+    if (histChart) histChart.destroy();
+
+    if (type === "histogram") {
+        drawCharts(data);
+        return;
+    }
+
+    if (type === "scatter") {
+
+        const xData =
+            data.visualization.histograms[xCol];
+
+        const yData =
+            data.visualization.histograms[yCol];
+
+        const scatterData =
+            xData.map((x,i)=>({x:x,y:yData[i]}));
+
+        histChart = new Chart(
+            document.getElementById("histChart"),
+            {
+                type: "scatter",
+                data: {
+                    datasets: [{
+                        label: `${xCol} vs ${yCol}`,
+                        data: scatterData
+                    }]
+                }
+            }
+        );
+    }
+}
+
+
+// ================= HEATMAP =================
+function drawHeatmap(data) {
+
+    const corr =
+        data.advanced_visualization.correlation;
+
+    const labels = Object.keys(corr);
+
+    if (labels.length === 0) return;
+
+    if (heatmapChart) heatmapChart.destroy();
+
+    heatmapChart = new Chart(
+        document.getElementById("heatmapChart"),
+        {
+            type: "bar",
+            data: {
+                labels: labels,
+                datasets: [{
+                    label: "Correlation",
+                    data: Object.values(corr[labels[0]])
                 }]
             }
         }
     );
 }
+
+
+// ================= MISSING VALUES =================
+function drawMissing(data) {
+
+    const obj =
+        data.advanced_visualization.missing_values;
+
+    if (missingChart) missingChart.destroy();
+
+    missingChart = new Chart(
+        document.getElementById("missingChart"),
+        {
+            type: "bar",
+            data: {
+                labels: Object.keys(obj),
+                datasets: [{
+                    label: "Missing Values",
+                    data: Object.values(obj)
+                }]
+            }
+        }
+    );
+}
+
+
+// ================= CHART RESIZE =================
+document.getElementById("zoomIn")
+.addEventListener("click", () => {
+    chartScale += 0.2;
+    document.getElementById("histChart").style.transform =
+        `scale(${chartScale})`;
+});
+
+document.getElementById("zoomOut")
+.addEventListener("click", () => {
+    chartScale -= 0.2;
+    document.getElementById("histChart").style.transform =
+        `scale(${chartScale})`;
+});

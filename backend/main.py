@@ -7,10 +7,13 @@ import io
 
 from eda_engine import perform_eda
 
+
 app = FastAPI()
+
 
 # Static files
 app.mount("/static", StaticFiles(directory="static"), name="static")
+
 
 # Templates
 templates = Jinja2Templates(directory="templates")
@@ -44,3 +47,6 @@ async def upload_file(file: UploadFile = File(...)):
     eda_result = perform_eda(df)
 
     return eda_result
+
+
+

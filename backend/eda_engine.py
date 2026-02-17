@@ -2,135 +2,187 @@ import pandas as pd
 import numpy as np
 
 
-# ------------------------------------------------
-# CLEAN JSON (NaN -> None for FastAPI response)
-# ------------------------------------------------
-def clean_json(data):
-
-    if isinstance(data, dict):
-        return {k: clean_json(v) for k, v in data.items()}
-
-    elif isinstance(data, list):
-        return [clean_json(v) for v in data]
-
-    elif isinstance(data, float):
-        if np.isnan(data) or np.isinf(data):
+# =============================
+# SAFE JSON CLEANER
+# =============================
+def clean_json(obj):
+    if isinstance(obj, dict):
+        return {k: clean_json(v) for k, v in obj.items()}
+    elif isinstance(obj, list):
+        return [clean_json(v) for v in obj]
+    elif isinstance(obj, float):
+        if np.isnan(obj) or np.isinf(obj):
             return None
-        return data
-
-    return data
+    return obj
 
 
-# ------------------------------------------------
-# MAIN EDA ENGINE
-# ------------------------------------------------
+# =============================
+# DATE DETECTION FUNCTION
+# =============================
+def try_parse_dates(df):
+
+    for col in df.columns:
+
+        if df[col].dtype == "object":
+            try:
+                parsed = pd.to_datetime(
+                    df[col],
+                    errors="coerce",
+                    dayfirst=True
+                )
+
+                # if more than 60% values converted → date column
+                if parsed.notna().sum() > len(df) * 0.6:
+                    df[col] = parsed
+
+            except:
+                pass
+
+    return df
+
+
+# =============================
+# MISSING VALUE HANDLING
+# =============================
+def handle_missing_values(df):
+
+    for col in df.columns:
+
+        if df[col].dtype in ["int64", "float64"]:
+            df[col].fillna(df[col].mean(), inplace=True)
+
+        elif df[col].dtype == "object":
+            mode_val = df[col].mode()
+            if len(mode_val) > 0:
+                df[col].fillna(mode_val[0], inplace=True)
+
+    return df
+
+
+# =============================
+# MAIN EDA FUNCTION
+# =============================
 def perform_eda(df):
 
-    # ---------------------------
-    # BASIC INFO
-    # ---------------------------
-    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
-    categorical_cols = df.select_dtypes(exclude=np.number).columns.tolist()
+    # ---------- DATE DETECTION ----------
+    df = try_parse_dates(df)
 
-    overview = {
-        "rows": int(df.shape[0]),
-        "columns": int(df.shape[1]),
-        "column_names": df.columns.tolist(),
-        "numeric_columns": numeric_cols,
-        "categorical_columns": categorical_cols
-    }
+    # ---------- MISSING VALUE HANDLING ----------
+    def handle_missing_values(df):
 
-    # ---------------------------
-    # DATA QUALITY
-    # ---------------------------
-    missing_values = df.isnull().sum().to_dict()
+    for col in df.columns:
 
-    data_quality = {
-        "missing_values": missing_values,
-        "duplicates": int(df.duplicated().sum()),
-        "unique_counts": df.nunique().to_dict()
-    }
+        # TRY NUMERIC CONVERSION
+        df[col] = pd.to_numeric(df[col], errors="ignore")
 
-    # ---------------------------
-    # DESCRIPTIVE STATISTICS
-    # ---------------------------
-    statistics = {}
+        # NUMERIC COLUMN
+        if pd.api.types.is_numeric_dtype(df[col]):
 
-    if len(numeric_cols) > 0:
+            mean_val = df[col].mean()
 
-        desc = df[numeric_cols].describe().to_dict()
+            if not np.isnan(mean_val):
+                df[col] = df[col].fillna(mean_val)
 
-        skewness = df[numeric_cols].skew().to_dict()
-        kurtosis = df[numeric_cols].kurt().to_dict()
+        # STRING COLUMN
+        elif df[col].dtype == "object":
 
-        statistics = {
-            "describe": desc,
-            "skewness": skewness,
-            "kurtosis": kurtosis
+            mode_val = df[col].mode()
+
+            if len(mode_val) > 0:
+                df[col] = df[col].fillna(mode_val[0])
+
+    return df
+
+
+
+    # ---------- COLUMN PROFILE ----------
+    column_profile = {}
+
+    for col in df.columns:
+        column_profile[col] = {
+            "dtype": str(df[col].dtype),
+            "unique_values": int(df[col].nunique()),
+            "missing_values": int(df[col].isnull().sum())
         }
 
-    # ---------------------------
-    # CORRELATION MATRIX
-    # ---------------------------
-    correlation = {}
 
-    if len(numeric_cols) > 1:
-        correlation = df[numeric_cols].corr().to_dict()
+    # ---------- CATEGORY COUNTS ----------
+    category_counts = {}
 
-    # ---------------------------
-    # OUTLIER DETECTION (IQR)
-    # ---------------------------
-    outliers = {}
+    for col in categorical_cols:
+        category_counts[col] = (
+            df[col]
+            .astype(str)
+            .value_counts()
+            .to_dict()
+        )
+
+
+    # ---------- HISTOGRAM DATA ----------
+    histograms = {}
 
     for col in numeric_cols:
-        Q1 = df[col].quantile(0.25)
-        Q3 = df[col].quantile(0.75)
-        IQR = Q3 - Q1
-
-        lower = Q1 - 1.5 * IQR
-        upper = Q3 + 1.5 * IQR
-
-        outliers[col] = int(
-            ((df[col] < lower) | (df[col] > upper)).sum()
+        histograms[col] = (
+            df[col]
+            .dropna()
+            .astype(float)
+            .tolist()
         )
 
-    # ---------------------------
-    # DATA PREVIEW
-    # ---------------------------
-    preview = df.head(5).fillna("").to_dict(orient="records")
 
-    # ---------------------------
-    # AUTO INSIGHTS
-    # ---------------------------
+    # ---------- CORRELATION ----------
+    correlation = {}
+    numeric_df = df.select_dtypes(include=np.number)
+
+    if not numeric_df.empty:
+        correlation = (
+            numeric_df
+            .corr()
+            .fillna(0)
+            .to_dict()
+        )
+
+
+    # ---------- INSIGHTS ----------
     insights = []
-
     insights.append(
-        f"Dataset contains {df.shape[0]} rows and {df.shape[1]} columns."
+        f"Dataset contains {rows} rows and {columns} columns"
     )
 
-    if data_quality["duplicates"] > 0:
-        insights.append(
-            f"{data_quality['duplicates']} duplicate rows detected."
-        )
+    insights.append(
+        f"{len(numeric_cols)} numeric columns detected"
+    )
 
-    for col, val in missing_values.items():
-        if val > 0:
-            insights.append(f"{col} has {val} missing values.")
+    insights.append(
+        f"{len(categorical_cols)} categorical columns detected"
+    )
 
-    for col, skew in statistics.get("skewness", {}).items():
-        if abs(skew) > 1:
-            insights.append(f"{col} is highly skewed.")
 
-    # ---------------------------
-    # FINAL RESULT
-    # ---------------------------
+    # ---------- FINAL OUTPUT ----------
     result = {
-        "overview": overview,
-        "data_quality": data_quality,
-        "statistics": statistics,
-        "correlation": correlation,
-        "outliers": outliers,
-        "preview": preview,
+
+        "overview": {
+            "rows": rows,
+            "columns": columns,
+            "numeric_columns": numeric_cols,
+            "categorical_columns": categorical_cols,
+            "datetime_columns": datetime_cols
+        },
+
+        "column_profile": column_profile,
+
+        "preview": df.head(10)
+        .to_dict(orient="records"),
+
+        "visualization": {
+            "histograms": histograms,
+            "category_counts": category_counts
+        },
+
+        "advanced_visualization": {
+            "correlation": correlation
+        },
+
         "insights": insights
     }
 
