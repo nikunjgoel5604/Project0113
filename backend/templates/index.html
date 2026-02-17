@@ -1,39 +1,83 @@
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
+    <meta charset="UTF-8">
     <title>Nikunj Data Analyzer</title>
+
+    <!-- CSS -->
     <link rel="stylesheet" href="/static/CSS/style.css">
+
+    <!-- Chart.js -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
 <div class="container">
 
+    <!-- ================= HEADER / UPLOAD ================= -->
     <div class="card">
         <h1>Nikunj Data Analyzer</h1>
+        <p>Upload CSV / Excel file to perform complete EDA</p>
 
         <input type="file" id="fileInput">
         <button id="uploadBtn">Upload File</button>
     </div>
 
+    <!-- ================= DATASET OVERVIEW ================= -->
     <div class="card">
         <h2>Dataset Overview</h2>
-        Rows: <span id="rows"></span><br>
-        Columns: <span id="columns"></span><br>
-        Numeric Columns: <span id="numericColumns"></span><br>
-        Categorical Columns: <span id="categoricalColumns"></span>
+        <p>Rows: <span id="rows"></span></p>
+        <p>Columns: <span id="columns"></span></p>
+        <p>Numeric Columns: <span id="numericColumns"></span></p>
+        <p>Categorical Columns: <span id="categoricalColumns"></span></p>
     </div>
 
+    <!-- ================= DATA QUALITY ================= -->
     <div class="card">
         <h2>Data Quality</h2>
-        Duplicates: <span id="duplicates"></span>
+        <p>Duplicates: <span id="duplicates"></span></p>
     </div>
 
+    <!-- ================= VISUALIZATION CONTROLS (NEW) ================= -->
+    <div class="card">
+        <h2>Visualization Controls</h2>
+
+        <label for="numericSelect">Numeric Column</label>
+        <select id="numericSelect"></select>
+
+        <label for="categorySelect">Categorical Column</label>
+        <select id="categorySelect"></select>
+
+        <label for="filterColumn">Filter Column</label>
+        <select id="filterColumn"></select>
+
+        <label for="filterValue">Filter Value</label>
+        <select id="filterValue"></select>
+
+        <button id="applyFilter">Apply Filter</button>
+    </div>
+
+    <!-- ================= CHARTS ================= -->
+    <div class="card">
+        <h2>Charts</h2>
+
+        <div class="chart-box">
+            <canvas id="histChart"></canvas>
+        </div>
+
+        <div class="chart-box">
+            <canvas id="catChart"></canvas>
+        </div>
+    </div>
+
+    <!-- ================= INSIGHTS ================= -->
     <div class="card">
         <h2>Insights</h2>
         <ul id="insights"></ul>
     </div>
 
+    <!-- ================= DATASET PREVIEW ================= -->
     <div class="card">
         <h2>Dataset Preview</h2>
         <div id="preview"></div>
@@ -41,6 +85,7 @@
 
 </div>
 
+<!-- JS -->
 <script src="/static/Js/script.js"></script>
 
 </body>

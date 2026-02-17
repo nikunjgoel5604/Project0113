@@ -1,29 +1,60 @@
-body {
-    font-family: Arial, sans-serif;
-    background-color: #f4f6f8;
-    margin: 0;
-}
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Nikunj Data Analyzer</title>
 
-.container {
-    width: 400px;
-    margin: 80px auto;
-}
+    <link rel="stylesheet" href="/static/CSS/style.css">
 
-.upload-card,
-.result-card {
-    background: white;
-    padding: 20px;
-    margin-bottom: 20px;
-    border-radius: 8px;
-    box-shadow: 0px 2px 8px rgba(0,0,0,0.1);
-}
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+</head>
 
-button {
-    width: 100%;
-    padding: 10px;
-    background-color: #2d89ef;
-    color: white;
-    border: none;
-    border-radius: 5px;
-    cursor: pointer;
-}
+<body>
+
+<div class="container">
+
+    <h1>Nikunj Data Analyzer</h1>
+
+    <!-- Upload -->
+    <div class="card">
+        <input type="file" id="fileInput">
+        <button id="uploadBtn">Upload File</button>
+    </div>
+
+    <!-- Overview -->
+    <div class="card">
+        <h2>Dataset Overview</h2>
+        Rows: <span id="rows"></span><br>
+        Columns: <span id="columns"></span><br>
+        Numeric Columns: <span id="numericColumns"></span><br>
+        Categorical Columns: <span id="categoricalColumns"></span>
+    </div>
+
+    <!-- Insights -->
+    <div class="card">
+        <h2>Insights</h2>
+        <ul id="insights"></ul>
+    </div>
+
+    <!-- Preview -->
+    <div class="card">
+        <h2>Dataset Preview</h2>
+        <div id="preview"></div>
+    </div>
+
+    <!-- Charts -->
+    <div class="card">
+        <h2>Histogram</h2>
+        <canvas id="histChart"></canvas>
+    </div>
+
+    <div class="card">
+        <h2>Category Count</h2>
+        <canvas id="catChart"></canvas>
+    </div>
+
+</div>
+
+<script src="/static/Js/script.js"></script>
+
+</body>
+</html>
