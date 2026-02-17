@@ -7,7 +7,8 @@ import pandas as pd
 import io
 import os
 
-from eda_engine import perform_eda
+from backend.eda_engine import perform_eda  # ✅ FIXED FOR RENDER
+
 
 # =====================================================
 # FASTAPI APP
@@ -16,10 +17,14 @@ app = FastAPI()
 
 
 # =====================================================
-# STATIC FILES (CSS / JS)
+# BASE DIRECTORY
 # =====================================================
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
+
+# =====================================================
+# STATIC FILES (CSS / JS)
+# =====================================================
 app.mount(
     "/static",
     StaticFiles(directory=os.path.join(BASE_DIR, "static")),
@@ -82,14 +87,13 @@ async def upload_file(file: UploadFile = File(...)):
 
 
 # =====================================================
-# RUN (LOCAL / DEPLOYMENT)
+# RUN (LOCAL / RENDER)
 # =====================================================
-port = int(os.environ.get("PORT", 8000))
-
 if __name__ == "__main__":
     import uvicorn
+    port = int(os.environ.get("PORT", 10000))
     uvicorn.run(
-        "main:app",
+        "backend.main:app",
         host="0.0.0.0",
         port=port
     )
