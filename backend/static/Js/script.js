@@ -1,8 +1,9 @@
 // =============================
-// GLOBAL CHART VARIABLES
+// GLOBAL VARIABLES
 // =============================
 let histChart = null;
 let catChart = null;
+let globalData = null;
 
 
 // =============================
@@ -11,21 +12,18 @@ let catChart = null;
 document.getElementById("uploadBtn")
 .addEventListener("click", async () => {
 
-    const fileInput = document.getElementById("fileInput");
-    const file = fileInput.files[0];
+    const file = document.getElementById("fileInput").files[0];
 
     if (!file) {
-        alert("Please select a file first");
+        alert("Select file first");
         return;
     }
 
-    // Prepare form data
     const formData = new FormData();
     formData.append("file", file);
 
     try {
 
-        // Send file to backend
         const response = await fetch("/upload", {
             method: "POST",
             body: formData
@@ -35,160 +33,226 @@ document.getElementById("uploadBtn")
 
         console.log("EDA RESPONSE:", data);
 
-        // If backend error
         if (data.error) {
             alert(data.error);
             return;
         }
 
-        // =============================
-        // DATASET OVERVIEW
-        // =============================
-        document.getElementById("rows").innerText =
-            data.overview?.rows ?? "-";
+        globalData = data;
 
-        document.getElementById("columns").innerText =
-            data.overview?.columns ?? "-";
+        loadOverview(data);
+        loadInsights(data);
+        loadPreview(data);
+        loadDropdowns(data);
+        drawCharts(data);
 
-        document.getElementById("numericColumns").innerText =
-            data.overview?.numeric_columns?.join(", ") ?? "-";
-
-        document.getElementById("categoricalColumns").innerText =
-            data.overview?.categorical_columns?.join(", ") ?? "-";
-
-
-        // =============================
-        // DUPLICATE COUNT
-        // =============================
-        if (document.getElementById("duplicates")) {
-            document.getElementById("duplicates").innerText =
-                data.data_quality?.duplicates ?? "-";
-        }
+    } catch (err) {
+        console.error(err);
+        alert("Backend error. Check server.");
+    }
+});
 
 
-        // =============================
-        // INSIGHTS
-        // =============================
-        const insightBox = document.getElementById("insights");
-        insightBox.innerHTML = "";
+// =============================
+// LOAD OVERVIEW
+// =============================
+function loadOverview(data) {
 
-        if (data.insights) {
-            data.insights.forEach(i => {
-                const li = document.createElement("li");
-                li.innerText = i;
-                insightBox.appendChild(li);
-            });
-        }
+    document.getElementById("rows").innerText =
+        data.overview?.rows ?? "-";
 
+    document.getElementById("columns").innerText =
+        data.overview?.columns ?? "-";
 
-        // =============================
-        // PREVIEW TABLE
-        // =============================
-        const previewDiv = document.getElementById("preview");
-        previewDiv.innerHTML = "";
+    document.getElementById("numericColumns").innerText =
+        data.overview?.numeric_columns?.join(", ") ?? "-";
 
-        if (data.preview && data.preview.length > 0) {
+    document.getElementById("categoricalColumns").innerText =
+        data.overview?.categorical_columns?.join(", ") ?? "-";
 
-            let table = "<table border='1'><tr>";
-
-            Object.keys(data.preview[0]).forEach(col => {
-                table += `<th>${col}</th>`;
-            });
-
-            table += "</tr>";
-
-            data.preview.forEach(row => {
-                table += "<tr>";
-                Object.values(row).forEach(val => {
-                    table += `<td>${val}</td>`;
-                });
-                table += "</tr>";
-            });
-
-            table += "</table>";
-            previewDiv.innerHTML = table;
-        }
+    if (document.getElementById("duplicates")) {
+        document.getElementById("duplicates").innerText =
+            data.data_quality?.duplicates ?? "-";
+    }
+}
 
 
-        // =============================
-        // HISTOGRAM CHART
-        // =============================
-        if (data.visualization &&
-            data.visualization.histograms) {
+// =============================
+// LOAD INSIGHTS
+// =============================
+function loadInsights(data) {
 
-            const numericCols =
-                Object.keys(data.visualization.histograms);
+    const insightBox = document.getElementById("insights");
+    insightBox.innerHTML = "";
 
-            if (numericCols.length > 0) {
+    if (!data.insights) return;
 
-                const col = numericCols[0];
-                const values =
-                    data.visualization.histograms[col];
+    data.insights.forEach(i => {
+        const li = document.createElement("li");
+        li.innerText = i;
+        insightBox.appendChild(li);
+    });
+}
 
-                if (histChart) histChart.destroy();
 
-                histChart = new Chart(
-                    document.getElementById("histChart"),
-                    {
-                        type: "bar",
-                        data: {
-                            labels: values.slice(0, 20),
-                            datasets: [{
-                                label: col,
-                                data: values.slice(0, 20)
-                            }]
-                        },
-                        options: {
-                            responsive: true,
-                            plugins: {
-                                legend: { display: true }
-                            }
-                        }
-                    }
-                );
+// =============================
+// LOAD PREVIEW TABLE
+// =============================
+function loadPreview(data) {
+
+    const previewDiv = document.getElementById("preview");
+    previewDiv.innerHTML = "";
+
+    if (!data.preview || data.preview.length === 0) return;
+
+    let table = "<table border='1'><tr>";
+
+    Object.keys(data.preview[0]).forEach(col => {
+        table += `<th>${col}</th>`;
+    });
+
+    table += "</tr>";
+
+    data.preview.forEach(row => {
+        table += "<tr>";
+        Object.values(row).forEach(val => {
+            table += `<td>${val ?? ""}</td>`;
+        });
+        table += "</tr>";
+    });
+
+    table += "</table>";
+    previewDiv.innerHTML = table;
+}
+
+
+// =============================
+// LOAD DROPDOWNS
+// =============================
+function loadDropdowns(data) {
+
+    const numSelect = document.getElementById("numericSelect");
+    const catSelect = document.getElementById("categorySelect");
+    const filterColumn = document.getElementById("filterColumn");
+
+    numSelect.innerHTML = "";
+    catSelect.innerHTML = "";
+    filterColumn.innerHTML = "";
+
+    data.overview.numeric_columns.forEach(col => {
+        numSelect.innerHTML += `<option value="${col}">${col}</option>`;
+    });
+
+    data.overview.categorical_columns.forEach(col => {
+        catSelect.innerHTML += `<option value="${col}">${col}</option>`;
+        filterColumn.innerHTML += `<option value="${col}">${col}</option>`;
+    });
+
+    updateFilterValues();
+}
+
+
+// =============================
+// FILTER VALUES UPDATE
+// =============================
+document.getElementById("filterColumn")
+.addEventListener("change", updateFilterValues);
+
+function updateFilterValues() {
+
+    if (!globalData) return;
+
+    const col = document.getElementById("filterColumn").value;
+
+    const values =
+        globalData.visualization?.category_counts?.[col];
+
+    const filterValue =
+        document.getElementById("filterValue");
+
+    filterValue.innerHTML = "";
+
+    if (!values) return;
+
+    Object.keys(values).forEach(v => {
+        filterValue.innerHTML += `<option value="${v}">${v}</option>`;
+    });
+}
+
+
+// =============================
+// APPLY FILTER BUTTON
+// =============================
+document.getElementById("applyFilter")
+.addEventListener("click", () => {
+
+    if (!globalData) return;
+    drawCharts(globalData);
+});
+
+
+// =============================
+// DRAW CHARTS
+// =============================
+function drawCharts(data) {
+
+    const numCol =
+        document.getElementById("numericSelect").value;
+
+    const catCol =
+        document.getElementById("categorySelect").value;
+
+
+    // ---------- HISTOGRAM ----------
+    if (histChart) histChart.destroy();
+
+    const histValues =
+        data.visualization?.histograms?.[numCol];
+
+    if (histValues) {
+
+        histChart = new Chart(
+            document.getElementById("histChart"),
+            {
+                type: "bar",
+                data: {
+                    labels: histValues.slice(0, 20),
+                    datasets: [{
+                        label: numCol,
+                        data: histValues.slice(0, 20)
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
             }
-        }
-
-
-        // =============================
-        // CATEGORY COUNT CHART
-        // =============================
-        if (data.visualization &&
-            data.visualization.category_counts) {
-
-            const catCols =
-                Object.keys(data.visualization.category_counts);
-
-            if (catCols.length > 0) {
-
-                const col = catCols[0];
-                const obj =
-                    data.visualization.category_counts[col];
-
-                if (catChart) catChart.destroy();
-
-                catChart = new Chart(
-                    document.getElementById("catChart"),
-                    {
-                        type: "bar",
-                        data: {
-                            labels: Object.keys(obj),
-                            datasets: [{
-                                label: col,
-                                data: Object.values(obj)
-                            }]
-                        },
-                        options: {
-                            responsive: true
-                        }
-                    }
-                );
-            }
-        }
-
-    } catch (error) {
-        console.error(error);
-        alert("Error processing file. Check backend.");
+        );
     }
 
-});
+
+    // ---------- CATEGORY COUNT ----------
+    if (catChart) catChart.destroy();
+
+    const catObj =
+        data.visualization?.category_counts?.[catCol];
+
+    if (catObj) {
+
+        catChart = new Chart(
+            document.getElementById("catChart"),
+            {
+                type: "bar",
+                data: {
+                    labels: Object.keys(catObj),
+                    datasets: [{
+                        label: catCol,
+                        data: Object.values(catObj)
+                    }]
+                },
+                options: {
+                    responsive: true
+                }
+            }
+        );
+    }
+}
