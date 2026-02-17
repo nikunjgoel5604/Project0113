@@ -21,8 +21,7 @@ def clean_json(obj):
 
 
 # =====================================================
-# DATE DETECTION
-# Supports mixed formats automatically
+# DATE DETECTION (AUTO FORMAT)
 # =====================================================
 def try_parse_dates(df):
 
@@ -34,7 +33,8 @@ def try_parse_dates(df):
                 parsed = pd.to_datetime(
                     df[col],
                     errors="coerce",
-                    dayfirst=True
+                    dayfirst=True,
+                    infer_datetime_format=True
                 )
 
                 # convert only if majority parsed
@@ -51,38 +51,38 @@ def try_parse_dates(df):
 # SAFE NUMERIC CONVERSION
 # =====================================================
 def safe_to_numeric(series):
-    try:
-        return pd.to_numeric(series, errors="coerce")
-    except:
-        return series
+
+    converted = pd.to_numeric(series, errors="coerce")
+
+    # if majority numeric → convert
+    if converted.notna().sum() > len(series) * 0.6:
+        return converted
+
+    return series
 
 
 # =====================================================
-# MISSING VALUE HANDLING (ETL)
-# numeric → mean
-# string → mode
+# HANDLE MISSING VALUES
 # =====================================================
 def handle_missing_values(df):
 
     for col in df.columns:
 
-        converted = safe_to_numeric(df[col])
-
-        # if majority numeric → convert
-        if converted.notna().sum() > len(df) * 0.6:
-            df[col] = converted
+        df[col] = safe_to_numeric(df[col])
 
         # NUMERIC
         if pd.api.types.is_numeric_dtype(df[col]):
 
             mean_val = df[col].mean()
+
             if not np.isnan(mean_val):
                 df[col] = df[col].fillna(mean_val)
 
-        # STRING
+        # STRING / CATEGORY
         elif df[col].dtype == "object":
 
             mode_val = df[col].mode()
+
             if len(mode_val) > 0:
                 df[col] = df[col].fillna(mode_val[0])
 
@@ -96,18 +96,18 @@ def perform_eda(df):
 
     df = df.copy()
 
-    # ================= ETL =================
+    # ---------------- ETL ----------------
     df = try_parse_dates(df)
     df = handle_missing_values(df)
 
     rows, columns = df.shape
 
-    # ================= COLUMN TYPES =================
+    # ---------------- COLUMN TYPES ----------------
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(include="object").columns.tolist()
     datetime_cols = df.select_dtypes(include="datetime").columns.tolist()
 
-    # ================= COLUMN PROFILE =================
+    # ---------------- COLUMN PROFILE ----------------
     column_profile = {}
 
     for col in df.columns:
@@ -117,7 +117,9 @@ def perform_eda(df):
             "missing_values": int(df[col].isnull().sum())
         }
 
-    # ================= HISTOGRAM DATA =================
+    # =====================================================
+    # HISTOGRAM DATA (OPTIMIZED)
+    # =====================================================
     histograms = {}
 
     for col in numeric_cols:
@@ -125,6 +127,7 @@ def perform_eda(df):
         values = df[col].dropna()
 
         if len(values) > 0:
+
             counts, bins = np.histogram(values, bins=20)
 
             histograms[col] = {
@@ -132,11 +135,13 @@ def perform_eda(df):
                 "counts": counts.tolist()
             }
 
-    # ================= CATEGORY COUNTS =================
-    # limit to top 20 values (prevents slow UI)
+    # =====================================================
+    # CATEGORY COUNTS (TOP 20 ONLY)
+    # =====================================================
     category_counts = {}
 
     for col in categorical_cols:
+
         category_counts[col] = (
             df[col]
             .astype(str)
@@ -145,25 +150,35 @@ def perform_eda(df):
             .to_dict()
         )
 
-    # ================= CORRELATION (OPTIMIZED) =================
+    # =====================================================
+    # CORRELATION (SAFE FOR LARGE DATASETS)
+    # =====================================================
     correlation = {}
+
     numeric_df = df.select_dtypes(include=np.number)
 
     if not numeric_df.empty:
 
-        sample_df = numeric_df.sample(
+        sampled_df = numeric_df.sample(
             min(len(numeric_df), 1000),
             random_state=42
         )
 
         correlation = (
-            sample_df
+            sampled_df
             .corr()
             .fillna(0)
             .to_dict()
         )
 
-    # ================= INSIGHTS =================
+    # =====================================================
+    # MISSING VALUE ANALYSIS
+    # =====================================================
+    missing_values = df.isnull().sum().to_dict()
+
+    # =====================================================
+    # INSIGHTS
+    # =====================================================
     insights = [
         f"Dataset contains {rows} rows and {columns} columns",
         f"{len(numeric_cols)} numeric columns detected",
@@ -175,10 +190,14 @@ def perform_eda(df):
             f"{len(datetime_cols)} datetime columns detected"
         )
 
-    # ================= PREVIEW =================
+    # =====================================================
+    # PREVIEW
+    # =====================================================
     preview = df.head(10).to_dict(orient="records")
 
-    # ================= FINAL RESPONSE =================
+    # =====================================================
+    # FINAL RESPONSE
+    # =====================================================
     result = {
 
         "overview": {
@@ -192,7 +211,8 @@ def perform_eda(df):
         "column_profile": column_profile,
 
         "data_quality": {
-            "missing_values": df.isnull().sum().to_dict()
+            "missing_values": missing_values,
+            "duplicates": int(df.duplicated().sum())
         },
 
         "preview": preview,
@@ -203,7 +223,8 @@ def perform_eda(df):
         },
 
         "advanced_visualization": {
-            "correlation": correlation
+            "correlation": correlation,
+            "missing_values": missing_values
         },
 
         "insights": insights
