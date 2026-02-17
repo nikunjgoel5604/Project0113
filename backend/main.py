@@ -2,23 +2,42 @@ from fastapi import FastAPI, UploadFile, File, Request
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+
 import pandas as pd
 import io
+import os
 
 from eda_engine import perform_eda
 
-
+# =====================================================
+# FASTAPI APP
+# =====================================================
 app = FastAPI()
 
 
-# Static files
-app.mount("/static", StaticFiles(directory="static"), name="static")
+# =====================================================
+# STATIC FILES (CSS / JS)
+# =====================================================
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+app.mount(
+    "/static",
+    StaticFiles(directory=os.path.join(BASE_DIR, "static")),
+    name="static"
+)
 
 
-# Templates
-templates = Jinja2Templates(directory="templates")
+# =====================================================
+# TEMPLATES
+# =====================================================
+templates = Jinja2Templates(
+    directory=os.path.join(BASE_DIR, "templates")
+)
 
 
+# =====================================================
+# HOME ROUTE
+# =====================================================
 @app.get("/")
 def home(request: Request):
     return templates.TemplateResponse(
@@ -27,26 +46,50 @@ def home(request: Request):
     )
 
 
+# =====================================================
+# FILE UPLOAD + EDA
+# =====================================================
 @app.post("/upload")
 async def upload_file(file: UploadFile = File(...)):
 
-    contents = await file.read()
+    try:
+        contents = await file.read()
 
-    # Detect file type
-    if file.filename.endswith(".csv"):
-        df = pd.read_csv(io.BytesIO(contents))
+        # ---------- CSV ----------
+        if file.filename.lower().endswith(".csv"):
+            df = pd.read_csv(io.BytesIO(contents))
 
-    elif file.filename.endswith(".xlsx"):
-        df = pd.read_excel(io.BytesIO(contents))
+        # ---------- EXCEL ----------
+        elif file.filename.lower().endswith(".xlsx"):
+            df = pd.read_excel(io.BytesIO(contents))
 
-    else:
+        else:
+            return JSONResponse(
+                status_code=400,
+                content={"error": "Unsupported file type"}
+            )
+
+        # ---------- RUN EDA ----------
+        eda_result = perform_eda(df)
+
+        return eda_result
+
+    except Exception as e:
         return JSONResponse(
-            content={"error": "Unsupported file type"}
+            status_code=500,
+            content={"error": str(e)}
         )
 
-    eda_result = perform_eda(df)
 
-    return eda_result
+# =====================================================
+# RUN (LOCAL / DEPLOYMENT)
+# =====================================================
+port = int(os.environ.get("PORT", 8000))
 
-
-
+if __name__ == "__main__":
+    import uvicorn
+    uvicorn.run(
+        "main:app",
+        host="0.0.0.0",
+        port=port
+    )
