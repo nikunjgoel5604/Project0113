@@ -21,7 +21,8 @@ def clean_json(obj):
 
 
 # =====================================================
-# DATE DETECTION (AUTO FORMAT)
+# DATE DETECTION
+# Supports multiple formats automatically
 # =====================================================
 def try_parse_dates(df):
 
@@ -33,11 +34,10 @@ def try_parse_dates(df):
                 parsed = pd.to_datetime(
                     df[col],
                     errors="coerce",
-                    dayfirst=True,
-                    infer_datetime_format=True
+                    dayfirst=True
                 )
 
-                # convert only if majority parsed
+                # Convert only if majority parsed
                 if parsed.notna().sum() > len(df) * 0.6:
                     df[col] = parsed
 
@@ -52,23 +52,24 @@ def try_parse_dates(df):
 # =====================================================
 def safe_to_numeric(series):
 
-    converted = pd.to_numeric(series, errors="coerce")
-
-    # if majority numeric → convert
-    if converted.notna().sum() > len(series) * 0.6:
-        return converted
-
-    return series
+    try:
+        return pd.to_numeric(series, errors="coerce")
+    except:
+        return series
 
 
 # =====================================================
-# HANDLE MISSING VALUES
+# HANDLE MISSING VALUES (ETL)
 # =====================================================
 def handle_missing_values(df):
 
     for col in df.columns:
 
-        df[col] = safe_to_numeric(df[col])
+        converted = safe_to_numeric(df[col])
+
+        # convert to numeric if majority numeric
+        if converted.notna().sum() > len(df) * 0.6:
+            df[col] = converted
 
         # NUMERIC
         if pd.api.types.is_numeric_dtype(df[col]):
@@ -78,7 +79,7 @@ def handle_missing_values(df):
             if not np.isnan(mean_val):
                 df[col] = df[col].fillna(mean_val)
 
-        # STRING / CATEGORY
+        # STRING
         elif df[col].dtype == "object":
 
             mode_val = df[col].mode()
@@ -117,9 +118,7 @@ def perform_eda(df):
             "missing_values": int(df[col].isnull().sum())
         }
 
-    # =====================================================
-    # HISTOGRAM DATA (OPTIMIZED)
-    # =====================================================
+    # ---------------- HISTOGRAM DATA ----------------
     histograms = {}
 
     for col in numeric_cols:
@@ -135,50 +134,42 @@ def perform_eda(df):
                 "counts": counts.tolist()
             }
 
-    # =====================================================
-    # CATEGORY COUNTS (TOP 20 ONLY)
-    # =====================================================
+    # ---------------- CATEGORY COUNTS ----------------
     category_counts = {}
 
     for col in categorical_cols:
-
         category_counts[col] = (
             df[col]
             .astype(str)
             .value_counts()
-            .head(20)
+            .head(20)       # performance safe
             .to_dict()
         )
 
-    # =====================================================
-    # CORRELATION (SAFE FOR LARGE DATASETS)
-    # =====================================================
+    # ---------------- CORRELATION ----------------
     correlation = {}
 
     numeric_df = df.select_dtypes(include=np.number)
 
     if not numeric_df.empty:
 
-        sampled_df = numeric_df.sample(
+        sample_df = numeric_df.sample(
             min(len(numeric_df), 1000),
             random_state=42
         )
 
         correlation = (
-            sampled_df
+            sample_df
             .corr()
             .fillna(0)
             .to_dict()
         )
 
-    # =====================================================
-    # MISSING VALUE ANALYSIS
-    # =====================================================
+    # ---------------- DATA QUALITY ----------------
     missing_values = df.isnull().sum().to_dict()
+    duplicates = int(df.duplicated().sum())
 
-    # =====================================================
-    # INSIGHTS
-    # =====================================================
+    # ---------------- INSIGHTS ----------------
     insights = [
         f"Dataset contains {rows} rows and {columns} columns",
         f"{len(numeric_cols)} numeric columns detected",
@@ -190,14 +181,10 @@ def perform_eda(df):
             f"{len(datetime_cols)} datetime columns detected"
         )
 
-    # =====================================================
-    # PREVIEW
-    # =====================================================
+    # ---------------- PREVIEW ----------------
     preview = df.head(10).to_dict(orient="records")
 
-    # =====================================================
-    # FINAL RESPONSE
-    # =====================================================
+    # ---------------- FINAL RESPONSE ----------------
     result = {
 
         "overview": {
@@ -212,7 +199,7 @@ def perform_eda(df):
 
         "data_quality": {
             "missing_values": missing_values,
-            "duplicates": int(df.duplicated().sum())
+            "duplicates": duplicates
         },
 
         "preview": preview,
