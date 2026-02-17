@@ -1,134 +1,54 @@
-// =============================
-// GLOBAL VARIABLES
-// =============================
 let histChart = null;
 let catChart = null;
 let globalData = null;
 
 
-// =============================
-// UPLOAD BUTTON EVENT
-// =============================
+// ================= UPLOAD =================
 document.getElementById("uploadBtn")
 .addEventListener("click", async () => {
 
     const file = document.getElementById("fileInput").files[0];
-
-    if (!file) {
-        alert("Select file first");
-        return;
-    }
+    if (!file) return alert("Select file first");
 
     const formData = new FormData();
     formData.append("file", file);
 
-    try {
+    const response = await fetch("/upload", {
+        method: "POST",
+        body: formData
+    });
 
-        const response = await fetch("/upload", {
-            method: "POST",
-            body: formData
-        });
+    const data = await response.json();
+    globalData = data;
 
-        const data = await response.json();
-
-        console.log("EDA RESPONSE:", data);
-
-        if (data.error) {
-            alert(data.error);
-            return;
-        }
-
-        globalData = data;
-
-        loadOverview(data);
-        loadInsights(data);
-        loadPreview(data);
-        loadDropdowns(data);
-        drawCharts(data);
-
-    } catch (err) {
-        console.error(err);
-        alert("Backend error. Check server.");
-    }
+    loadOverview(data);
+    loadDropdowns(data);
+    loadPreview(data.preview);
+    drawCharts(data.preview);
 });
 
 
-// =============================
-// LOAD OVERVIEW
-// =============================
+// ================= OVERVIEW =================
 function loadOverview(data) {
 
     document.getElementById("rows").innerText =
-        data.overview?.rows ?? "-";
+        data.overview.rows;
 
     document.getElementById("columns").innerText =
-        data.overview?.columns ?? "-";
+        data.overview.columns;
 
     document.getElementById("numericColumns").innerText =
-        data.overview?.numeric_columns?.join(", ") ?? "-";
+        data.overview.numeric_columns.join(", ");
 
     document.getElementById("categoricalColumns").innerText =
-        data.overview?.categorical_columns?.join(", ") ?? "-";
+        data.overview.categorical_columns.join(", ");
 
-    if (document.getElementById("duplicates")) {
-        document.getElementById("duplicates").innerText =
-            data.data_quality?.duplicates ?? "-";
-    }
+    document.getElementById("duplicates").innerText =
+        data.data_quality.duplicates;
 }
 
 
-// =============================
-// LOAD INSIGHTS
-// =============================
-function loadInsights(data) {
-
-    const insightBox = document.getElementById("insights");
-    insightBox.innerHTML = "";
-
-    if (!data.insights) return;
-
-    data.insights.forEach(i => {
-        const li = document.createElement("li");
-        li.innerText = i;
-        insightBox.appendChild(li);
-    });
-}
-
-
-// =============================
-// LOAD PREVIEW TABLE
-// =============================
-function loadPreview(data) {
-
-    const previewDiv = document.getElementById("preview");
-    previewDiv.innerHTML = "";
-
-    if (!data.preview || data.preview.length === 0) return;
-
-    let table = "<table border='1'><tr>";
-
-    Object.keys(data.preview[0]).forEach(col => {
-        table += `<th>${col}</th>`;
-    });
-
-    table += "</tr>";
-
-    data.preview.forEach(row => {
-        table += "<tr>";
-        Object.values(row).forEach(val => {
-            table += `<td>${val ?? ""}</td>`;
-        });
-        table += "</tr>";
-    });
-
-    table += "</table>";
-    previewDiv.innerHTML = table;
-}
-
-
-// =============================
-// LOAD DROPDOWNS
-// =============================
+// ================= DROPDOWNS =================
 function loadDropdowns(data) {
 
     const numSelect = document.getElementById("numericSelect");
@@ -152,49 +72,83 @@ function loadDropdowns(data) {
 }
 
 
-// =============================
-// FILTER VALUES UPDATE
-// =============================
+// ================= FILTER VALUES =================
 document.getElementById("filterColumn")
 .addEventListener("change", updateFilterValues);
 
 function updateFilterValues() {
 
-    if (!globalData) return;
-
-    const col = document.getElementById("filterColumn").value;
-
-    const values =
-        globalData.visualization?.category_counts?.[col];
+    const col =
+        document.getElementById("filterColumn").value;
 
     const filterValue =
         document.getElementById("filterValue");
 
     filterValue.innerHTML = "";
 
-    if (!values) return;
+    // unique values from preview data
+    const uniqueValues = [
+        ...new Set(globalData.preview.map(r => r[col]))
+    ];
 
-    Object.keys(values).forEach(v => {
+    uniqueValues.forEach(v => {
         filterValue.innerHTML += `<option value="${v}">${v}</option>`;
     });
 }
 
 
-// =============================
-// APPLY FILTER BUTTON
-// =============================
+// ================= APPLY FILTER =================
 document.getElementById("applyFilter")
 .addEventListener("click", () => {
 
-    if (!globalData) return;
-    drawCharts(globalData);
+    const filterCol =
+        document.getElementById("filterColumn").value;
+
+    const filterVal =
+        document.getElementById("filterValue").value;
+
+    // FILTER DATA
+    const filteredData =
+        globalData.preview.filter(
+            row => String(row[filterCol]) === String(filterVal)
+        );
+
+    loadPreview(filteredData);
+    drawCharts(filteredData);
 });
 
 
-// =============================
-// DRAW CHARTS
-// =============================
-function drawCharts(data) {
+// ================= PREVIEW TABLE =================
+function loadPreview(dataRows) {
+
+    const previewDiv = document.getElementById("preview");
+    previewDiv.innerHTML = "";
+
+    if (!dataRows.length) return;
+
+    let table = "<table border='1'><tr>";
+
+    Object.keys(dataRows[0]).forEach(col => {
+        table += `<th>${col}</th>`;
+    });
+
+    table += "</tr>";
+
+    dataRows.forEach(row => {
+        table += "<tr>";
+        Object.values(row).forEach(val => {
+            table += `<td>${val}</td>`;
+        });
+        table += "</tr>";
+    });
+
+    table += "</table>";
+    previewDiv.innerHTML = table;
+}
+
+
+// ================= DRAW CHARTS =================
+function drawCharts(dataRows) {
 
     const numCol =
         document.getElementById("numericSelect").value;
@@ -202,57 +156,48 @@ function drawCharts(data) {
     const catCol =
         document.getElementById("categorySelect").value;
 
-
     // ---------- HISTOGRAM ----------
+    const numericValues =
+        dataRows.map(r => Number(r[numCol]))
+                .filter(v => !isNaN(v));
+
     if (histChart) histChart.destroy();
 
-    const histValues =
-        data.visualization?.histograms?.[numCol];
-
-    if (histValues) {
-
-        histChart = new Chart(
-            document.getElementById("histChart"),
-            {
-                type: "bar",
-                data: {
-                    labels: histValues.slice(0, 20),
-                    datasets: [{
-                        label: numCol,
-                        data: histValues.slice(0, 20)
-                    }]
-                },
-                options: {
-                    responsive: true
-                }
+    histChart = new Chart(
+        document.getElementById("histChart"),
+        {
+            type: "bar",
+            data: {
+                labels: numericValues.slice(0,20),
+                datasets: [{
+                    label: numCol,
+                    data: numericValues.slice(0,20)
+                }]
             }
-        );
-    }
+        }
+    );
 
 
     // ---------- CATEGORY COUNT ----------
+    const counts = {};
+    dataRows.forEach(r => {
+        const key = r[catCol];
+        counts[key] = (counts[key] || 0) + 1;
+    });
+
     if (catChart) catChart.destroy();
 
-    const catObj =
-        data.visualization?.category_counts?.[catCol];
-
-    if (catObj) {
-
-        catChart = new Chart(
-            document.getElementById("catChart"),
-            {
-                type: "bar",
-                data: {
-                    labels: Object.keys(catObj),
-                    datasets: [{
-                        label: catCol,
-                        data: Object.values(catObj)
-                    }]
-                },
-                options: {
-                    responsive: true
-                }
+    catChart = new Chart(
+        document.getElementById("catChart"),
+        {
+            type: "bar",
+            data: {
+                labels: Object.keys(counts),
+                datasets: [{
+                    label: catCol,
+                    data: Object.values(counts)
+                }]
             }
-        );
-    }
+        }
+    );
 }

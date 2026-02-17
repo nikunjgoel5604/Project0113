@@ -1,21 +1,19 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
-    <title>Data Analyzer</title>
+    <title>Nikunj Data Analyzer</title>
 
     <!-- CSS -->
     <link rel="stylesheet" href="/static/CSS/style.css">
-
-    <!-- Chart.js -->
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 </head>
 
 <body>
 
 <div class="container">
 
-    <!-- ================= HEADER / UPLOAD ================= -->
+    <!-- ================= UPLOAD SECTION ================= -->
     <div class="card">
         <h1>Nikunj Data Analyzer</h1>
         <p>Upload CSV / Excel file to perform complete EDA</p>
@@ -24,58 +22,71 @@
         <button id="uploadBtn">Upload File</button>
     </div>
 
+
     <!-- ================= DATASET OVERVIEW ================= -->
     <div class="card">
         <h2>Dataset Overview</h2>
-        <p>Rows: <span id="rows"></span></p>
-        <p>Columns: <span id="columns"></span></p>
-        <p>Numeric Columns: <span id="numericColumns"></span></p>
-        <p>Categorical Columns: <span id="categoricalColumns"></span></p>
+
+        <p>Rows: <span id="rows">-</span></p>
+        <p>Columns: <span id="columns">-</span></p>
+
+        <p><b>Numeric Columns:</b><br>
+            <span id="numericColumns">-</span>
+        </p>
+
+        <p><b>Categorical Columns:</b><br>
+            <span id="categoricalColumns">-</span>
+        </p>
     </div>
+
 
     <!-- ================= DATA QUALITY ================= -->
     <div class="card">
         <h2>Data Quality</h2>
-        <p>Duplicates: <span id="duplicates"></span></p>
+        <p>Duplicates: <span id="duplicates">-</span></p>
     </div>
 
-    <!-- ================= VISUALIZATION CONTROLS (NEW) ================= -->
+
+    <!-- ================= VISUALIZATION CONTROLS ================= -->
     <div class="card">
         <h2>Visualization Controls</h2>
 
-        <label for="numericSelect">Numeric Column</label>
+        <label>Numeric Column</label><br>
         <select id="numericSelect"></select>
+        <br><br>
 
-        <label for="categorySelect">Categorical Column</label>
+        <label>Categorical Column</label><br>
         <select id="categorySelect"></select>
+        <br><br>
 
-        <label for="filterColumn">Filter Column</label>
+        <label>Filter Column</label><br>
         <select id="filterColumn"></select>
+        <br><br>
 
-        <label for="filterValue">Filter Value</label>
+        <label>Filter Value</label><br>
         <select id="filterValue"></select>
+        <br><br>
 
         <button id="applyFilter">Apply Filter</button>
     </div>
+
 
     <!-- ================= CHARTS ================= -->
     <div class="card">
         <h2>Charts</h2>
 
-        <div class="chart-box">
-            <canvas id="histChart"></canvas>
-        </div>
-
-        <div class="chart-box">
-            <canvas id="catChart"></canvas>
-        </div>
+        <canvas id="histChart"></canvas>
+        <br><br>
+        <canvas id="catChart"></canvas>
     </div>
+
 
     <!-- ================= INSIGHTS ================= -->
     <div class="card">
         <h2>Insights</h2>
         <ul id="insights"></ul>
     </div>
+
 
     <!-- ================= DATASET PREVIEW ================= -->
     <div class="card">
@@ -85,7 +96,12 @@
 
 </div>
 
-<!-- JS -->
+
+<!-- ================= IMPORTANT ================= -->
+<!-- Chart.js MUST load before script.js -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<!-- Your JS -->
 <script src="/static/Js/script.js"></script>
 
 </body>
