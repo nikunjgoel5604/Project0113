@@ -70,4 +70,26 @@ uploadBtn.addEventListener("click", async () => {
         table += "</table>";
         previewDiv.innerHTML = table;
     }
+    // HISTOGRAM CHART
+const numericCols = Object.keys(data.visualization.histograms);
+
+if (numericCols.length > 0) {
+
+    const firstCol = numericCols[0];
+    const values = data.visualization.histograms[firstCol];
+
+    const ctx = document.getElementById('histChart');
+
+    new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: values.slice(0,20),
+            datasets: [{
+                label: firstCol,
+                data: values.slice(0,20)
+            }]
+        }
+    });
+}
+
 });
