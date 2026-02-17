@@ -2,28 +2,38 @@ import pandas as pd
 import numpy as np
 
 
-# =============================
-# SAFE JSON CLEANER
-# =============================
+# =====================================================
+# SAFE JSON CONVERSION (FASTAPI SAFE)
+# =====================================================
 def clean_json(obj):
+
     if isinstance(obj, dict):
         return {k: clean_json(v) for k, v in obj.items()}
+
     elif isinstance(obj, list):
         return [clean_json(v) for v in obj]
+
     elif isinstance(obj, float):
         if np.isnan(obj) or np.isinf(obj):
             return None
+
     return obj
 
 
-# =============================
-# DATE DETECTION FUNCTION
-# =============================
+# =====================================================
+# DATE DETECTION
+# Supports:
+# dd-mm-yyyy
+# dd/mm/yyyy
+# yyyy-mm-dd
+# mixed formats
+# =====================================================
 def try_parse_dates(df):
 
     for col in df.columns:
 
         if df[col].dtype == "object":
+
             try:
                 parsed = pd.to_datetime(
                     df[col],
@@ -31,7 +41,7 @@ def try_parse_dates(df):
                     dayfirst=True
                 )
 
-                # if more than 60% values converted → date column
+                # convert only if majority parsed
                 if parsed.notna().sum() > len(df) * 0.6:
                     df[col] = parsed
 
@@ -41,41 +51,32 @@ def try_parse_dates(df):
     return df
 
 
-# =============================
-# MISSING VALUE HANDLING
-# =============================
+# =====================================================
+# SAFE NUMERIC CONVERSION
+# =====================================================
+def safe_to_numeric(series):
+
+    try:
+        return pd.to_numeric(series, errors="coerce")
+    except:
+        return series
+
+
+# =====================================================
+# MISSING VALUE HANDLING (ETL)
+# =====================================================
 def handle_missing_values(df):
 
     for col in df.columns:
 
-        if df[col].dtype in ["int64", "float64"]:
-            df[col].fillna(df[col].mean(), inplace=True)
+        # Try numeric conversion safely
+        converted = safe_to_numeric(df[col])
 
-        elif df[col].dtype == "object":
-            mode_val = df[col].mode()
-            if len(mode_val) > 0:
-                df[col].fillna(mode_val[0], inplace=True)
+        # If conversion successful → use numeric column
+        if converted.notna().sum() > len(df) * 0.6:
+            df[col] = converted
 
-    return df
-
-
-# =============================
-# MAIN EDA FUNCTION
-# =============================
-def perform_eda(df):
-
-    # ---------- DATE DETECTION ----------
-    df = try_parse_dates(df)
-
-    # ---------- MISSING VALUE HANDLING ----------
-    def handle_missing_values(df):
-
-    for col in df.columns:
-
-        # TRY NUMERIC CONVERSION
-        df[col] = pd.to_numeric(df[col], errors="ignore")
-
-        # NUMERIC COLUMN
+        # ---------- NUMERIC ----------
         if pd.api.types.is_numeric_dtype(df[col]):
 
             mean_val = df[col].mean()
@@ -83,7 +84,7 @@ def perform_eda(df):
             if not np.isnan(mean_val):
                 df[col] = df[col].fillna(mean_val)
 
-        # STRING COLUMN
+        # ---------- STRING ----------
         elif df[col].dtype == "object":
 
             mode_val = df[col].mode()
@@ -94,6 +95,23 @@ def perform_eda(df):
     return df
 
 
+# =====================================================
+# MAIN EDA FUNCTION
+# =====================================================
+def perform_eda(df):
+
+    df = df.copy()
+
+    # ---------- ETL ----------
+    df = try_parse_dates(df)
+    df = handle_missing_values(df)
+
+    rows, columns = df.shape
+
+    # ---------- COLUMN TYPES ----------
+    numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
+    categorical_cols = df.select_dtypes(include="object").columns.tolist()
+    datetime_cols = df.select_dtypes(include="datetime").columns.tolist()
 
     # ---------- COLUMN PROFILE ----------
     column_profile = {}
@@ -105,22 +123,8 @@ def perform_eda(df):
             "missing_values": int(df[col].isnull().sum())
         }
 
-
-    # ---------- CATEGORY COUNTS ----------
-    category_counts = {}
-
-    for col in categorical_cols:
-        category_counts[col] = (
-            df[col]
-            .astype(str)
-            .value_counts()
-            .to_dict()
-        )
-
-
     # ---------- HISTOGRAM DATA ----------
     histograms = {}
-
     for col in numeric_cols:
         histograms[col] = (
             df[col]
@@ -129,6 +133,15 @@ def perform_eda(df):
             .tolist()
         )
 
+    # ---------- CATEGORY COUNTS ----------
+    category_counts = {}
+    for col in categorical_cols:
+        category_counts[col] = (
+            df[col]
+            .astype(str)
+            .value_counts()
+            .to_dict()
+        )
 
     # ---------- CORRELATION ----------
     correlation = {}
@@ -142,23 +155,22 @@ def perform_eda(df):
             .to_dict()
         )
 
-
     # ---------- INSIGHTS ----------
-    insights = []
-    insights.append(
-        f"Dataset contains {rows} rows and {columns} columns"
-    )
-
-    insights.append(
-        f"{len(numeric_cols)} numeric columns detected"
-    )
-
-    insights.append(
+    insights = [
+        f"Dataset contains {rows} rows and {columns} columns",
+        f"{len(numeric_cols)} numeric columns detected",
         f"{len(categorical_cols)} categorical columns detected"
-    )
+    ]
 
+    if datetime_cols:
+        insights.append(
+            f"{len(datetime_cols)} datetime columns detected"
+        )
 
-    # ---------- FINAL OUTPUT ----------
+    # ---------- PREVIEW ----------
+    preview = df.head(10).to_dict(orient="records")
+
+    # ---------- FINAL RESPONSE ----------
     result = {
 
         "overview": {
@@ -171,8 +183,11 @@ def perform_eda(df):
 
         "column_profile": column_profile,
 
-        "preview": df.head(10)
-        .to_dict(orient="records"),
+        "data_quality": {
+            "missing_values": df.isnull().sum().to_dict()
+        },
+
+        "preview": preview,
 
         "visualization": {
             "histograms": histograms,
