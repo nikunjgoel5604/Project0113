@@ -22,11 +22,7 @@ def clean_json(obj):
 
 # =====================================================
 # DATE DETECTION
-# Supports:
-# dd-mm-yyyy
-# dd/mm/yyyy
-# yyyy-mm-dd
-# mixed formats
+# Supports mixed formats automatically
 # =====================================================
 def try_parse_dates(df):
 
@@ -55,7 +51,6 @@ def try_parse_dates(df):
 # SAFE NUMERIC CONVERSION
 # =====================================================
 def safe_to_numeric(series):
-
     try:
         return pd.to_numeric(series, errors="coerce")
     except:
@@ -64,31 +59,30 @@ def safe_to_numeric(series):
 
 # =====================================================
 # MISSING VALUE HANDLING (ETL)
+# numeric → mean
+# string → mode
 # =====================================================
 def handle_missing_values(df):
 
     for col in df.columns:
 
-        # Try numeric conversion safely
         converted = safe_to_numeric(df[col])
 
-        # If conversion successful → use numeric column
+        # if majority numeric → convert
         if converted.notna().sum() > len(df) * 0.6:
             df[col] = converted
 
-        # ---------- NUMERIC ----------
+        # NUMERIC
         if pd.api.types.is_numeric_dtype(df[col]):
 
             mean_val = df[col].mean()
-
             if not np.isnan(mean_val):
                 df[col] = df[col].fillna(mean_val)
 
-        # ---------- STRING ----------
+        # STRING
         elif df[col].dtype == "object":
 
             mode_val = df[col].mode()
-
             if len(mode_val) > 0:
                 df[col] = df[col].fillna(mode_val[0])
 
@@ -102,18 +96,18 @@ def perform_eda(df):
 
     df = df.copy()
 
-    # ---------- ETL ----------
+    # ================= ETL =================
     df = try_parse_dates(df)
     df = handle_missing_values(df)
 
     rows, columns = df.shape
 
-    # ---------- COLUMN TYPES ----------
+    # ================= COLUMN TYPES =================
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(include="object").columns.tolist()
     datetime_cols = df.select_dtypes(include="datetime").columns.tolist()
 
-    # ---------- COLUMN PROFILE ----------
+    # ================= COLUMN PROFILE =================
     column_profile = {}
 
     for col in df.columns:
@@ -123,39 +117,53 @@ def perform_eda(df):
             "missing_values": int(df[col].isnull().sum())
         }
 
-    # ---------- HISTOGRAM DATA ----------
+    # ================= HISTOGRAM DATA =================
     histograms = {}
-    for col in numeric_cols:
-        histograms[col] = (
-            df[col]
-            .dropna()
-            .astype(float)
-            .tolist()
-        )
 
-    # ---------- CATEGORY COUNTS ----------
+    for col in numeric_cols:
+
+        values = df[col].dropna()
+
+        if len(values) > 0:
+            counts, bins = np.histogram(values, bins=20)
+
+            histograms[col] = {
+                "bins": bins[:-1].tolist(),
+                "counts": counts.tolist()
+            }
+
+    # ================= CATEGORY COUNTS =================
+    # limit to top 20 values (prevents slow UI)
     category_counts = {}
+
     for col in categorical_cols:
         category_counts[col] = (
             df[col]
             .astype(str)
             .value_counts()
+            .head(20)
             .to_dict()
         )
 
-    # ---------- CORRELATION ----------
+    # ================= CORRELATION (OPTIMIZED) =================
     correlation = {}
     numeric_df = df.select_dtypes(include=np.number)
 
     if not numeric_df.empty:
+
+        sample_df = numeric_df.sample(
+            min(len(numeric_df), 1000),
+            random_state=42
+        )
+
         correlation = (
-            numeric_df
+            sample_df
             .corr()
             .fillna(0)
             .to_dict()
         )
 
-    # ---------- INSIGHTS ----------
+    # ================= INSIGHTS =================
     insights = [
         f"Dataset contains {rows} rows and {columns} columns",
         f"{len(numeric_cols)} numeric columns detected",
@@ -167,10 +175,10 @@ def perform_eda(df):
             f"{len(datetime_cols)} datetime columns detected"
         )
 
-    # ---------- PREVIEW ----------
+    # ================= PREVIEW =================
     preview = df.head(10).to_dict(orient="records")
 
-    # ---------- FINAL RESPONSE ----------
+    # ================= FINAL RESPONSE =================
     result = {
 
         "overview": {
