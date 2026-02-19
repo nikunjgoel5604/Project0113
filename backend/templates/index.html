@@ -12,168 +12,208 @@
 
 <body>
 
-    <div class="container">
+<div class="container">
 
-        <!-- ================= HEADER ================= -->
-        <div class="card header-card">
-            <h1>Nikunj Data Analyzer</h1>
-            <p>Upload CSV / Excel file to perform complete EDA</p>
+    <!-- ================= HEADER ================= -->
+    <div class="card header-card">
+        <h1>📊 Nikunj Data Analyzer</h1>
+        <p>Upload CSV / Excel file to perform complete EDA</p>
 
-            <input type="file" id="fileInput">
-            <button id="uploadBtn">Upload File</button>
-        </div>
-
-
-        <!-- ================= OVERVIEW ================= -->
-        <div class="card">
-            <h2>Dataset Overview</h2>
-
-            <div class="grid-2">
-                <div>Rows: <span id="rows">-</span></div>
-                <div>Columns: <span id="columns">-</span></div>
-            </div>
-
-            <p>
-                <b>Numeric Columns:</b>
-                <span id="numericColumns"></span>
-            </p>
-
-            <p>
-                <b>Categorical Columns:</b>
-                <span id="categoricalColumns"></span>
-            </p>
-        </div>
-
-
-        <!-- ================= DATA QUALITY ================= -->
-        <div class="card">
-            <h2>Data Quality</h2>
-            Duplicates: <span id="duplicates">-</span>
-        </div>
-
-
-        <!-- ================= VISUALIZATION CONTROLS ================= -->
-        <div class="card">
-            <h2>Visualization Controls</h2>
-
-            <div class="controls-grid">
-
-                <div>
-                    <label>Numeric Column</label>
-                    <select id="numericSelect"></select>
-                </div>
-
-                <div>
-                    <label>Categorical Column</label>
-                    <select id="categorySelect"></select>
-                </div>
-
-                <div>
-                    <label>Filter Column</label>
-                    <select id="filterColumn"></select>
-                </div>
-
-                <div>
-                    <label>Filter Value</label>
-                    <select id="filterValue"></select>
-                </div>
-
-                <div class="btn-group">
-                    <button id="applyFilter">Apply Filter</button>
-                </div>
-
-            </div>
-        </div>
-
-
-        <!-- ================= CHARTS ================= -->
-        <div class="card">
-            <div class="chart-header">
-                <h2>Charts</h2>
-
-                <div class="chart-controls">
-                    <button id="zoomIn">+</button>
-                    <button id="zoomOut">−</button>
-                </div>
-            </div>
-
-            <div class="chart-grid">
-
-                <div class="chart-box">
-                    <canvas id="histChart"></canvas>
-                </div>
-
-                <div class="chart-box">
-                    <canvas id="catChart"></canvas>
-                </div>
-
-            </div>
-        </div>
-
-
-        <!-- ================= INSIGHTS ================= -->
-        <div class="card">
-            <h2>Insights</h2>
-            <ul id="insights"></ul>
-        </div>
-
-
-        <!-- ================= PREVIEW ================= -->
-        <div class="card">
-            <h2>Dataset Preview</h2>
-
-            <div class="table-container">
-                <div id="preview"></div>
-            </div>
-        </div>
-
-
-        <div class="card">
-            <h2>Advanced EDA</h2>
-
-            <div class="controls-grid">
-
-                <div>
-                    <label>Chart Type</label>
-                    <select id="chartType">
-                        <option value="histogram">Histogram</option>
-                        <option value="box">Box Plot</option>
-                        <option value="scatter">Scatter Plot</option>
-                    </select>
-                </div>
-
-                <div>
-                    <label>X Axis</label>
-                    <select id="xAxis"></select>
-                </div>
-
-                <div>
-                    <label>Y Axis (Scatter Only)</label>
-                    <select id="yAxis"></select>
-                </div>
-
-                <div class="btn-group">
-                    <button id="updateChart">Update Chart</button>
-                </div>
-
-            </div>
-        </div>
-
-
-        <div class="card">
-            <h2>Correlation Heatmap</h2>
-            <canvas id="heatmapChart"></canvas>
-        </div>
-
-
-        <div class="card">
-            <h2>Missing Value Analysis</h2>
-            <canvas id="missingChart"></canvas>
-        </div>
-
+        <input type="file" id="fileInput">
+        <button id="uploadBtn">Upload File</button>
     </div>
 
-    <script src="/static/Js/script.js"></script>
+
+    <!-- ================= OVERVIEW ================= -->
+    <div class="card">
+        <h2>Dataset Overview</h2>
+
+        <div class="grid-2">
+            <div><b>Rows:</b> <span id="rows">-</span></div>
+            <div><b>Columns:</b> <span id="columns">-</span></div>
+        </div>
+
+        <p>
+            <b>Numeric Columns:</b>
+            <span id="numericColumns"></span>
+        </p>
+
+        <p>
+            <b>Categorical Columns:</b>
+            <span id="categoricalColumns"></span>
+        </p>
+
+        <p>
+            <b>Date Columns:</b>
+            <span id="datetimeColumns"></span>
+        </p>
+    </div>
+
+
+    <!-- ================= DATA QUALITY ================= -->
+    <div class="card">
+        <h2>Data Quality</h2>
+
+        <p><b>Duplicates:</b> <span id="duplicates">-</span></p>
+
+        <h3>Missing Handling Process</h3>
+        <div class="table-container">
+            <div id="missingProcess"></div>
+        </div>
+    </div>
+
+
+    <!-- ================= DATASET STRUCTURE ================= -->
+    <div class="card">
+        <h2>Dataset Structure (df.info)</h2>
+        <pre id="datasetInfo"></pre>
+    </div>
+
+    <div class="card">
+        <h2>Unique Values Count (df.nunique)</h2>
+        <div class="table-container">
+            <div id="nuniqueTable"></div>
+        </div>
+    </div>
+
+
+    <!-- ================= VALUE COUNTS ================= -->
+    <div class="card">
+        <h2>Value Counts (All Categorical Columns)</h2>
+        <div class="table-container">
+            <div id="valueCounts"></div>
+        </div>
+    </div>
+
+
+    <!-- ================= VISUALIZATION CONTROLS ================= -->
+    <div class="card">
+        <h2>Visualization Controls</h2>
+
+        <div class="controls-grid">
+
+            <div>
+                <label>Numeric Column</label>
+                <select id="numericSelect"></select>
+            </div>
+
+            <div>
+                <label>Categorical Column</label>
+                <select id="categorySelect"></select>
+            </div>
+
+            <div>
+                <label>Filter Column</label>
+                <select id="filterColumn"></select>
+            </div>
+
+            <div>
+                <label>Filter Value</label>
+                <select id="filterValue"></select>
+            </div>
+
+            <div class="btn-group">
+                <button id="applyFilter">Apply Filter</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ================= CHARTS ================= -->
+    <div class="card">
+        <div class="chart-header">
+            <h2>Charts</h2>
+
+            <div class="chart-controls">
+                <button id="zoomIn">+</button>
+                <button id="zoomOut">−</button>
+            </div>
+        </div>
+
+        <div class="chart-grid">
+
+            <div class="chart-box">
+                <canvas id="histChart"></canvas>
+            </div>
+
+            <div class="chart-box">
+                <canvas id="catChart"></canvas>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ================= ADVANCED EDA ================= -->
+    <div class="card">
+        <h2>Advanced EDA</h2>
+
+        <div class="controls-grid">
+
+            <div>
+                <label>Chart Type</label>
+                <select id="chartType">
+                    <option value="histogram">Histogram</option>
+                    <option value="box">Box Plot</option>
+                    <option value="scatter">Scatter Plot</option>
+                    <option value="bar">Bar Chart</option>
+                    <option value="line">Line Chart</option>
+                    <option value="pie">Pie Chart</option>
+                </select>
+            </div>
+
+            <div>
+                <label>X Axis</label>
+                <select id="xAxis"></select>
+            </div>
+
+            <div>
+                <label>Y Axis (Scatter Only)</label>
+                <select id="yAxis"></select>
+            </div>
+
+            <div class="btn-group">
+                <button id="updateChart">Update Chart</button>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- ================= HEATMAP ================= -->
+    <div class="card">
+        <h2>Correlation Heatmap</h2>
+        <canvas id="heatmapChart"></canvas>
+    </div>
+
+
+    <!-- ================= MISSING VISUAL ================= -->
+    <div class="card">
+        <h2>Missing Value Analysis</h2>
+        <canvas id="missingChart"></canvas>
+    </div>
+
+
+    <!-- ================= INSIGHTS ================= -->
+    <div class="card">
+        <h2>Insights</h2>
+        <ul id="insights"></ul>
+    </div>
+
+
+    <!-- ================= PREVIEW ================= -->
+    <div class="card">
+        <h2>Dataset Preview (Head)</h2>
+
+        <div class="table-container">
+            <div id="preview"></div>
+        </div>
+    </div>
+
+</div>
+
+<script src="/static/Js/script.js"></script>
 
 </body>
 </html>
