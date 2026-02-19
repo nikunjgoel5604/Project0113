@@ -127,8 +127,8 @@
         .missing-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
         .missing-col-name { width: 160px; color: var(--text-dim); font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
         .missing-bar-track { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
-        .missing-bar-fill { height: 100%; background: var(--red); border-radius: 4px; transition: width 0.6s ease; }
-        .missing-pct { width: 40px; text-align: right; color: var(--red); font-family: var(--font-mono); font-size: 11px; }
+        .missing-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+        .missing-pct { width: 42px; text-align: right; font-family: var(--font-mono); font-size: 11px; }
 
         /* INSIGHTS */
         .insight-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-dim); }
@@ -146,6 +146,86 @@
         /* SPINNER */
         .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(0,229,255,0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
         @keyframes spin { to { transform: rotate(360deg); } }
+
+        /* ══════════════════════════════════════
+           MISSING VALUE TOGGLE — NEW STYLES
+        ══════════════════════════════════════ */
+
+        /* Toggle Button Group */
+        .mv-toggle-group {
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            margin-bottom: 4px;
+        }
+
+        .mv-btn {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            letter-spacing: 1px;
+            padding: 9px 18px;
+            border-radius: 5px;
+            border: 1px solid var(--border);
+            background: transparent;
+            color: var(--text-dim);
+            cursor: pointer;
+            transition: all 0.15s;
+            text-transform: uppercase;
+        }
+
+        .mv-btn:hover {
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .mv-btn.active {
+            background: var(--accent);
+            border-color: var(--accent);
+            color: #000;
+            font-weight: bold;
+        }
+
+        /* Panel view title */
+        .mv-view-title {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            letter-spacing: 1px;
+            color: var(--accent);
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+
+        /* Summary Chips */
+        .mv-summary {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 16px;
+        }
+
+        .mv-chip {
+            font-family: var(--font-mono);
+            font-size: 11px;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid var(--border);
+            color: var(--text-dim);
+        }
+
+        .mv-chip.red     { border-color: var(--red);     color: var(--red); }
+        .mv-chip.yellow  { border-color: var(--yellow);  color: var(--yellow); }
+        .mv-chip.green   { border-color: var(--green);   color: var(--green); }
+        .mv-chip.accent2 { border-color: var(--accent2); color: var(--accent2); }
+
+        /* Strategy block */
+        .mv-block {
+            background: var(--surface2);
+            border: 1px solid var(--border);
+            border-radius: 6px;
+            padding: 16px;
+        }
 
         /* RESPONSIVE */
         @media (max-width: 1000px) {
@@ -284,6 +364,7 @@
                 <p>Missing values, duplicates, and cleaning report</p>
             </div>
 
+            <!-- Stat Cards -->
             <div class="stat-grid" style="grid-template-columns:repeat(2,1fr)">
                 <div class="stat-card danger">
                     <div class="stat-label">Duplicate Rows</div>
@@ -297,32 +378,41 @@
                 </div>
             </div>
 
-            <!-- MISSING VALUE BARS -->
+            <!-- ===== MISSING VALUE ANALYSIS WITH 3-BUTTON TOGGLE ===== -->
             <div class="card">
                 <div class="card-title">Missing Value Analysis</div>
-                <div id="missingBars"></div>
-            </div>
 
-            <!-- ★ BEFORE / AFTER BUTTON PANEL ★ -->
-            <div class="card">
-                <div class="card-title">Before &amp; After Missing Value Handling</div>
-                <div id="beforeAfterContainer">
-                    <p style="color:var(--text-dim);font-size:13px;">
-                        Upload a file to see the before &amp; after comparison.
-                    </p>
+                <!-- 3 Toggle Buttons -->
+                <div class="mv-toggle-group">
+                    <button class="mv-btn active" id="btnMissingBefore">
+                        📋 BEFORE Cleaning
+                    </button>
+                    <button class="mv-btn" id="btnMissingHandling">
+                        ⚙️ HANDLING Strategy
+                    </button>
+                    <button class="mv-btn" id="btnMissingAfter">
+                        ✅ AFTER Cleaning
+                    </button>
                 </div>
+
+                <!-- Dynamic panel — rendered by JS based on active button -->
+                <div id="missingPanel" style="margin-top:16px;"></div>
             </div>
 
-            <!-- CLEANING REPORT -->
+            <!-- ===== FULL CLEANING REPORT TABLE ===== -->
             <div class="card">
-                <div class="card-title">Cleaning Report</div>
+                <div class="card-title">Full Cleaning Report</div>
                 <div class="tbl-wrap">
                     <table>
                         <thead>
                             <tr>
-                                <th>Column</th><th>Type</th>
-                                <th>Missing Before</th><th>Missing After</th>
-                                <th>Method Applied</th><th>Status</th>
+                                <th>Column</th>
+                                <th>Type</th>
+                                <th>Missing Before</th>
+                                <th>Missing After</th>
+                                <th>Fill Value</th>
+                                <th>Method Applied</th>
+                                <th>Status</th>
                             </tr>
                         </thead>
                         <tbody id="cleaningBody"></tbody>
