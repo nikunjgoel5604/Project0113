@@ -31,9 +31,7 @@ document.getElementById("uploadBtn")
 
         const data = await response.json();
 
-        // ✅ FIX — only show error if backend sends error
         if (!response.ok || data.error) {
-            console.error(data);
             alert(data.error || "Error processing dataset");
             return;
         }
@@ -44,6 +42,11 @@ document.getElementById("uploadBtn")
         loadInsights(data);
         loadPreview(data);
         loadDropdowns(data);
+
+        loadDatasetInfo(data);
+        loadNunique(data);
+        loadValueCounts(data);
+        loadMissingProcess(data);
 
         drawCharts(data);
         drawHeatmap(data);
@@ -71,12 +74,106 @@ function loadOverview(data) {
     document.getElementById("categoricalColumns").innerText =
         data.overview.categorical_columns.join(", ");
 
-    if (document.getElementById("duplicates") &&
-        data.data_quality?.duplicates !== undefined) {
-
-        document.getElementById("duplicates").innerText =
-            data.data_quality.duplicates;
+    if (document.getElementById("datetimeColumns")) {
+        document.getElementById("datetimeColumns").innerText =
+            data.overview.datetime_columns.join(", ");
     }
+
+    document.getElementById("duplicates").innerText =
+        data.data_quality.duplicates;
+}
+
+
+// ================= DATASET STRUCTURE (df.info) =================
+function loadDatasetInfo(data) {
+
+    const box = document.getElementById("datasetInfo");
+    if (!box) return;
+
+    let text = "";
+
+    Object.keys(data.column_profile).forEach(col => {
+
+        const obj = data.column_profile[col];
+
+        text += `${col} | Type: ${obj.dtype} | Unique: ${obj.unique_values} | Missing: ${obj.missing_values}\n`;
+    });
+
+    box.innerText = text;
+}
+
+
+// ================= UNIQUE COUNT =================
+function loadNunique(data) {
+
+    const div = document.getElementById("nuniqueTable");
+    if (!div) return;
+
+    let table = "<table><tr><th>Column</th><th>Unique Values</th></tr>";
+
+    Object.keys(data.column_profile).forEach(col => {
+        table += `<tr>
+                    <td>${col}</td>
+                    <td>${data.column_profile[col].unique_values}</td>
+                  </tr>`;
+    });
+
+    table += "</table>";
+
+    div.innerHTML = table;
+}
+
+
+// ================= VALUE COUNTS =================
+function loadValueCounts(data) {
+
+    const div = document.getElementById("valueCounts");
+    if (!div) return;
+
+    div.innerHTML = "";
+
+    const counts = data.visualization.category_counts;
+
+    Object.keys(counts).forEach(col => {
+
+        div.innerHTML += `<h4>${col}</h4>`;
+
+        let table = "<table><tr><th>Value</th><th>Count</th></tr>";
+
+        Object.keys(counts[col]).forEach(value => {
+            table += `<tr>
+                        <td>${value}</td>
+                        <td>${counts[col][value]}</td>
+                      </tr>`;
+        });
+
+        table += "</table><br>";
+
+        div.innerHTML += table;
+    });
+}
+
+
+// ================= MISSING HANDLING PROCESS =================
+function loadMissingProcess(data) {
+
+    const div = document.getElementById("missingProcess");
+    if (!div) return;
+
+    const missing = data.data_quality.missing_values;
+
+    let table = "<table><tr><th>Column</th><th>Missing Count</th></tr>";
+
+    Object.keys(missing).forEach(col => {
+        table += `<tr>
+                    <td>${col}</td>
+                    <td>${missing[col]}</td>
+                  </tr>`;
+    });
+
+    table += "</table>";
+
+    div.innerHTML = table;
 }
 
 
@@ -94,7 +191,7 @@ function loadInsights(data) {
 }
 
 
-// ================= PREVIEW TABLE =================
+// ================= PREVIEW =================
 function loadPreview(data) {
 
     const previewDiv = document.getElementById("preview");
@@ -129,80 +226,32 @@ function loadDropdowns(data) {
 
     const numSelect = document.getElementById("numericSelect");
     const catSelect = document.getElementById("categorySelect");
-    const filterColumn = document.getElementById("filterColumn");
-    const xAxis = document.getElementById("xAxis");
-    const yAxis = document.getElementById("yAxis");
+
+    if (!numSelect || !catSelect) return;
 
     numSelect.innerHTML = "";
     catSelect.innerHTML = "";
-    filterColumn.innerHTML = "";
-    xAxis.innerHTML = "";
-    yAxis.innerHTML = "";
 
     data.overview.numeric_columns.forEach(col => {
         numSelect.innerHTML += `<option>${col}</option>`;
-        xAxis.innerHTML += `<option>${col}</option>`;
-        yAxis.innerHTML += `<option>${col}</option>`;
     });
 
     data.overview.categorical_columns.forEach(col => {
         catSelect.innerHTML += `<option>${col}</option>`;
-        filterColumn.innerHTML += `<option>${col}</option>`;
-    });
-
-    updateFilterValues();
-}
-
-
-// ================= FILTER VALUES =================
-document.getElementById("filterColumn")
-.addEventListener("change", updateFilterValues);
-
-function updateFilterValues() {
-
-    if (!globalData) return;
-
-    const col =
-        document.getElementById("filterColumn").value;
-
-    const values =
-        globalData.visualization?.category_counts?.[col];
-
-    const filterValue =
-        document.getElementById("filterValue");
-
-    filterValue.innerHTML = "";
-
-    if (!values) return;
-
-    Object.keys(values).forEach(v => {
-        filterValue.innerHTML += `<option>${v}</option>`;
     });
 }
 
 
-// ================= APPLY FILTER =================
-document.getElementById("applyFilter")
-.addEventListener("click", () => {
-    if (globalData) drawCharts(globalData);
-});
-
-
-// ================= MAIN CHARTS =================
+// ================= CHARTS =================
 function drawCharts(data) {
 
-    const numCol =
-        document.getElementById("numericSelect").value;
+    const numCol = document.getElementById("numericSelect").value;
+    const catCol = document.getElementById("categorySelect").value;
 
-    const catCol =
-        document.getElementById("categorySelect").value;
-
-    // ================= HISTOGRAM =================
     if (histChart) histChart.destroy();
+    if (catChart) catChart.destroy();
 
-    const histData =
-        data.visualization.histograms[numCol];
-
+    const histData = data.visualization.histograms[numCol];
     if (!histData) return;
 
     histChart = new Chart(
@@ -215,17 +264,11 @@ function drawCharts(data) {
                     label: numCol,
                     data: histData.counts
                 }]
-            },
-            options: { responsive: true }
+            }
         }
     );
 
-    // ================= CATEGORY COUNT =================
-    if (catChart) catChart.destroy();
-
-    const obj =
-        data.visualization.category_counts[catCol];
-
+    const obj = data.visualization.category_counts[catCol];
     if (!obj) return;
 
     catChart = new Chart(
@@ -238,137 +281,7 @@ function drawCharts(data) {
                     label: catCol,
                     data: Object.values(obj)
                 }]
-            },
-            options: { responsive: true }
-        }
-    );
-}
-
-
-// ================= ADVANCED CHART =================
-document.getElementById("updateChart")
-.addEventListener("click", () => {
-    if (globalData) drawAdvancedChart(globalData);
-});
-
-function drawAdvancedChart(data) {
-
-    const type =
-        document.getElementById("chartType").value;
-
-    const xCol =
-        document.getElementById("xAxis").value;
-
-    const yCol =
-        document.getElementById("yAxis").value;
-
-    if (histChart) histChart.destroy();
-
-    if (type === "histogram") {
-        drawCharts(data);
-        return;
-    }
-
-    if (type === "scatter") {
-
-        const xData =
-            data.visualization.histograms[xCol]?.bins;
-
-        const yData =
-            data.visualization.histograms[yCol]?.counts;
-
-        if (!xData || !yData) return;
-
-        const len = Math.min(xData.length, yData.length);
-
-        const scatterData = [];
-
-        for (let i = 0; i < len; i++) {
-            scatterData.push({ x: xData[i], y: yData[i] });
-        }
-
-        histChart = new Chart(
-            document.getElementById("histChart"),
-            {
-                type: "scatter",
-                data: {
-                    datasets: [{
-                        label: `${xCol} vs ${yCol}`,
-                        data: scatterData
-                    }]
-                }
-            }
-        );
-    }
-}
-
-
-// ================= HEATMAP =================
-function drawHeatmap(data) {
-
-    const corr =
-        data.advanced_visualization?.correlation;
-
-    if (!corr) return;
-
-    const labels = Object.keys(corr);
-    if (labels.length === 0) return;
-
-    if (heatmapChart) heatmapChart.destroy();
-
-    heatmapChart = new Chart(
-        document.getElementById("heatmapChart"),
-        {
-            type: "bar",
-            data: {
-                labels: labels,
-                datasets: [{
-                    label: "Correlation",
-                    data: Object.values(corr[labels[0]])
-                }]
             }
         }
     );
 }
-
-
-// ================= MISSING VALUES =================
-function drawMissing(data) {
-
-    const obj =
-        data.data_quality?.missing_values;
-
-    if (!obj) return;
-
-    if (missingChart) missingChart.destroy();
-
-    missingChart = new Chart(
-        document.getElementById("missingChart"),
-        {
-            type: "bar",
-            data: {
-                labels: Object.keys(obj),
-                datasets: [{
-                    label: "Missing Values",
-                    data: Object.values(obj)
-                }]
-            }
-        }
-    );
-}
-
-
-// ================= CHART RESIZE =================
-document.getElementById("zoomIn")
-.addEventListener("click", () => {
-    chartScale += 0.2;
-    document.getElementById("histChart").style.transform =
-        `scale(${chartScale})`;
-});
-
-document.getElementById("zoomOut")
-.addEventListener("click", () => {
-    chartScale = Math.max(0.5, chartScale - 0.2);
-    document.getElementById("histChart").style.transform =
-        `scale(${chartScale})`;
-});

@@ -55,6 +55,7 @@ def handle_missing_values(df):
     for col in df.columns:
 
         missing_before = int(df[col].isnull().sum())
+        method = "No Missing"
 
         # Try numeric conversion
         converted = pd.to_numeric(df[col], errors="coerce")
@@ -62,20 +63,23 @@ def handle_missing_values(df):
         if converted.notna().sum() > len(df) * 0.6:
             df[col] = converted
 
+        # ---------- NUMERIC ----------
         if pd.api.types.is_numeric_dtype(df[col]):
 
             mean_val = df[col].mean()
-            df[col] = df[col].fillna(mean_val)
 
-            method = "Filled with Mean"
+            if not np.isnan(mean_val):
+                df[col] = df[col].fillna(mean_val)
+                method = "Filled with Mean"
 
-        else:
+        # ---------- STRING ----------
+        elif df[col].dtype == "object":
 
             mode_val = df[col].mode()
+
             if len(mode_val) > 0:
                 df[col] = df[col].fillna(mode_val[0])
-
-            method = "Filled with Mode"
+                method = "Filled with Mode"
 
         missing_after = int(df[col].isnull().sum())
 
@@ -95,28 +99,29 @@ def perform_eda(df):
 
     df = df.copy()
 
-    # ---------- BASIC INFO ----------
     rows, columns = df.shape
 
+    # ================= RAW DATA STRUCTURE =================
     buffer = StringIO()
     df.info(buf=buffer)
     info_string = buffer.getvalue()
 
     nunique_data = df.nunique().to_dict()
 
-    # ---------- DATE DETECTION ----------
+    # ================= DATE DETECTION =================
     df, detected_dates = try_parse_dates(df)
 
-    # ---------- MISSING HANDLING ----------
+    # ================= MISSING HANDLING =================
     df, handling_report = handle_missing_values(df)
 
-    # ---------- COLUMN TYPES ----------
+    # ================= COLUMN TYPES =================
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(include="object").columns.tolist()
     datetime_cols = df.select_dtypes(include="datetime").columns.tolist()
 
-    # ---------- VALUE COUNTS ----------
+    # ================= VALUE COUNTS =================
     value_counts = {}
+
     for col in categorical_cols:
         value_counts[col] = (
             df[col]
@@ -125,19 +130,23 @@ def perform_eda(df):
             .to_dict()
         )
 
-    # ---------- HISTOGRAM ----------
+    # ================= HISTOGRAM =================
     histograms = {}
+
     for col in numeric_cols:
         values = df[col].dropna()
+
         if len(values) > 0:
             counts, bins = np.histogram(values, bins=20)
+
             histograms[col] = {
                 "bins": bins[:-1].tolist(),
                 "counts": counts.tolist()
             }
 
-    # ---------- CORRELATION ----------
+    # ================= CORRELATION =================
     correlation = {}
+
     numeric_df = df.select_dtypes(include=np.number)
 
     if not numeric_df.empty:
@@ -148,13 +157,13 @@ def perform_eda(df):
             .to_dict()
         )
 
-    # ---------- DUPLICATES ----------
+    # ================= DUPLICATES =================
     duplicates = int(df.duplicated().sum())
 
-    # ---------- PREVIEW ----------
+    # ================= PREVIEW =================
     preview = df.head(10).to_dict(orient="records")
 
-    # ---------- SUMMARY INSIGHTS ----------
+    # ================= INSIGHTS =================
     insights = [
         f"Dataset contains {rows} rows and {columns} columns.",
         f"{len(numeric_cols)} Numeric Columns detected.",
@@ -163,7 +172,7 @@ def perform_eda(df):
         f"{duplicates} Duplicate rows found."
     ]
 
-    # ---------- FINAL RESPONSE ----------
+    # ================= FINAL RESPONSE =================
     result = {
 
         "overview": {
@@ -175,11 +184,16 @@ def perform_eda(df):
         },
 
         "dataset_info": info_string,
+
         "nunique": nunique_data,
 
         "missing_handling_process": handling_report,
 
         "value_counts": value_counts,
+
+        "data_quality": {
+            "duplicates": duplicates
+        },
 
         "preview": preview,
 
