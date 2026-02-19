@@ -7,7 +7,13 @@ import pandas as pd
 import io
 import os
 
-from backend.eda_engine import perform_eda  # ✅ FIXED FOR RENDER
+# =====================================================
+# SMART IMPORT (Works Local + Render)
+# =====================================================
+try:
+    from backend.eda_engine import perform_eda  # Render
+except:
+    from eda_engine import perform_eda  # Local
 
 
 # =====================================================
@@ -87,13 +93,14 @@ async def upload_file(file: UploadFile = File(...)):
 
 
 # =====================================================
-# RUN (LOCAL / RENDER)
+# RUN (LOCAL ONLY)
 # =====================================================
 if __name__ == "__main__":
     import uvicorn
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 8000))
     uvicorn.run(
         "backend.main:app",
         host="0.0.0.0",
-        port=port
+        port=port,
+        reload=True
     )

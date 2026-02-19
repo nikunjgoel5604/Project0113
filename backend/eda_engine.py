@@ -1,9 +1,10 @@
 import pandas as pd
 import numpy as np
+from io import StringIO
 
 
 # =====================================================
-# SAFE JSON CONVERSION (FASTAPI SAFE)
+# SAFE JSON CONVERSION
 # =====================================================
 def clean_json(obj):
 
@@ -31,70 +32,60 @@ def try_parse_dates(df):
 
         if df[col].dtype == "object":
 
-            try:
-                parsed = pd.to_datetime(
-                    df[col],
-                    errors="coerce",
-                    dayfirst=True
-                )
+            parsed = pd.to_datetime(
+                df[col],
+                errors="coerce",
+                dayfirst=True
+            )
 
-                if parsed.notna().sum() > len(df) * 0.6:
-                    df[col] = parsed
-                    detected_dates.append(col)
-
-            except:
-                pass
+            if parsed.notna().sum() > len(df) * 0.6:
+                df[col] = parsed
+                detected_dates.append(col)
 
     return df, detected_dates
 
 
 # =====================================================
-# SAFE NUMERIC CONVERSION
-# =====================================================
-def safe_to_numeric(series):
-
-    try:
-        return pd.to_numeric(series, errors="coerce")
-    except:
-        return series
-
-
-# =====================================================
-# HANDLE MISSING VALUES (WITH STRATEGY LOG)
+# HANDLE MISSING VALUES + REPORT
 # =====================================================
 def handle_missing_values(df):
 
-    strategy_log = {}
-    missing_before = df.isnull().sum().to_dict()
+    handling_report = {}
 
     for col in df.columns:
 
-        converted = safe_to_numeric(df[col])
+        missing_before = int(df[col].isnull().sum())
+
+        # Try numeric conversion
+        converted = pd.to_numeric(df[col], errors="coerce")
 
         if converted.notna().sum() > len(df) * 0.6:
             df[col] = converted
 
-        # NUMERIC
         if pd.api.types.is_numeric_dtype(df[col]):
 
             mean_val = df[col].mean()
+            df[col] = df[col].fillna(mean_val)
 
-            if not np.isnan(mean_val):
-                df[col] = df[col].fillna(mean_val)
-                strategy_log[col] = "Filled with mean"
+            method = "Filled with Mean"
 
-        # STRING
-        elif df[col].dtype == "object":
+        else:
 
             mode_val = df[col].mode()
-
             if len(mode_val) > 0:
                 df[col] = df[col].fillna(mode_val[0])
-                strategy_log[col] = "Filled with mode"
 
-    missing_after = df.isnull().sum().to_dict()
+            method = "Filled with Mode"
 
-    return df, strategy_log, missing_before, missing_after
+        missing_after = int(df[col].isnull().sum())
+
+        handling_report[col] = {
+            "missing_before": missing_before,
+            "missing_after": missing_after,
+            "method": method
+        }
+
+    return df, handling_report
 
 
 # =====================================================
@@ -104,108 +95,75 @@ def perform_eda(df):
 
     df = df.copy()
 
-    # ---------------- DATE DETECTION ----------------
-    df, detected_dates = try_parse_dates(df)
-
-    # ---------------- HANDLE MISSING ----------------
-    df, strategy_log, missing_before, missing_after = handle_missing_values(df)
-
+    # ---------- BASIC INFO ----------
     rows, columns = df.shape
 
-    # ---------------- COLUMN TYPES ----------------
+    buffer = StringIO()
+    df.info(buf=buffer)
+    info_string = buffer.getvalue()
+
+    nunique_data = df.nunique().to_dict()
+
+    # ---------- DATE DETECTION ----------
+    df, detected_dates = try_parse_dates(df)
+
+    # ---------- MISSING HANDLING ----------
+    df, handling_report = handle_missing_values(df)
+
+    # ---------- COLUMN TYPES ----------
     numeric_cols = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(include="object").columns.tolist()
     datetime_cols = df.select_dtypes(include="datetime").columns.tolist()
 
-    # ---------------- COLUMN PROFILE ----------------
-    column_profile = {}
+    # ---------- VALUE COUNTS ----------
+    value_counts = {}
+    for col in categorical_cols:
+        value_counts[col] = (
+            df[col]
+            .astype(str)
+            .value_counts()
+            .to_dict()
+        )
 
-    for col in df.columns:
-        column_profile[col] = {
-            "dtype": str(df[col].dtype),
-            "unique_values": int(df[col].nunique()),
-            "missing_values": int(missing_after[col])
-        }
-
-    # ---------------- HISTOGRAM DATA ----------------
+    # ---------- HISTOGRAM ----------
     histograms = {}
-
     for col in numeric_cols:
-
         values = df[col].dropna()
-
         if len(values) > 0:
-
             counts, bins = np.histogram(values, bins=20)
-
             histograms[col] = {
                 "bins": bins[:-1].tolist(),
                 "counts": counts.tolist()
             }
 
-    # ---------------- CATEGORY COUNTS (FULL + %) ----------------
-    category_counts = {}
-
-    for col in categorical_cols:
-
-        value_counts = df[col].astype(str).value_counts()
-        total = len(df)
-
-        category_counts[col] = {
-            value: {
-                "count": int(count),
-                "percentage": round((count / total) * 100, 2)
-            }
-            for value, count in value_counts.items()
-        }
-
-    # ---------------- CORRELATION ----------------
+    # ---------- CORRELATION ----------
     correlation = {}
-
     numeric_df = df.select_dtypes(include=np.number)
 
     if not numeric_df.empty:
-
-        sample_df = numeric_df.sample(
-            min(len(numeric_df), 1000),
-            random_state=42
-        )
-
         correlation = (
-            sample_df
+            numeric_df
             .corr()
             .fillna(0)
             .to_dict()
         )
 
-    # ---------------- DATE SUMMARY ----------------
-    date_summary = {}
-
-    for col in datetime_cols:
-        date_summary[col] = {
-            "min_date": str(df[col].min()),
-            "max_date": str(df[col].max())
-        }
-
-    # ---------------- DATA QUALITY ----------------
+    # ---------- DUPLICATES ----------
     duplicates = int(df.duplicated().sum())
 
-    # ---------------- INSIGHTS ----------------
-    insights = [
-        f"Dataset contains {rows} rows and {columns} columns",
-        f"{len(numeric_cols)} numeric columns detected",
-        f"{len(categorical_cols)} categorical columns detected"
-    ]
-
-    if datetime_cols:
-        insights.append(
-            f"{len(datetime_cols)} datetime columns detected"
-        )
-
-    # ---------------- PREVIEW ----------------
+    # ---------- PREVIEW ----------
     preview = df.head(10).to_dict(orient="records")
 
-    # ---------------- FINAL RESPONSE ----------------
+    # ---------- SUMMARY INSIGHTS ----------
+    insights = [
+        f"Dataset contains {rows} rows and {columns} columns.",
+        f"{len(numeric_cols)} Numeric Columns detected.",
+        f"{len(categorical_cols)} Categorical Columns detected.",
+        f"{len(datetime_cols)} Date Columns detected.",
+        f"{duplicates} Duplicate rows found."
+    ]
+
+    # ---------- FINAL RESPONSE ----------
     result = {
 
         "overview": {
@@ -216,28 +174,22 @@ def perform_eda(df):
             "datetime_columns": datetime_cols
         },
 
-        "column_profile": column_profile,
+        "dataset_info": info_string,
+        "nunique": nunique_data,
 
-        "data_quality": {
-            "missing_before": missing_before,
-            "missing_after": missing_after,
-            "missing_strategy": strategy_log,
-            "duplicates": duplicates
-        },
+        "missing_handling_process": handling_report,
+
+        "value_counts": value_counts,
 
         "preview": preview,
 
         "visualization": {
-            "histograms": histograms,
-            "category_counts": category_counts
+            "histograms": histograms
         },
 
         "advanced_visualization": {
-            "correlation": correlation,
-            "missing_values": missing_after
+            "correlation": correlation
         },
-
-        "date_summary": date_summary,
 
         "insights": insights
     }
