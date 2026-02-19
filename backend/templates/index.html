@@ -24,7 +24,7 @@
     </div>
 
 
-    <!-- ================= OVERVIEW ================= -->
+    <!-- ================= DATASET OVERVIEW ================= -->
     <div class="card">
         <h2>Dataset Overview</h2>
 
@@ -33,20 +33,9 @@
             <div><b>Columns:</b> <span id="columns">-</span></div>
         </div>
 
-        <p>
-            <b>Numeric Columns:</b>
-            <span id="numericColumns"></span>
-        </p>
-
-        <p>
-            <b>Categorical Columns:</b>
-            <span id="categoricalColumns"></span>
-        </p>
-
-        <p>
-            <b>Date Columns:</b>
-            <span id="datetimeColumns"></span>
-        </p>
+        <p><b>Numeric Columns:</b> <span id="numericColumns"></span></p>
+        <p><b>Categorical Columns:</b> <span id="categoricalColumns"></span></p>
+        <p><b>Date Columns:</b> <span id="datetimeColumns"></span></p>
     </div>
 
 
@@ -66,13 +55,17 @@
     <!-- ================= DATASET STRUCTURE ================= -->
     <div class="card">
         <h2>Dataset Structure (df.info)</h2>
-        <pre id="datasetInfo"></pre>
+        <div class="table-container">
+            <pre id="datasetInfo"></pre>
+        </div>
     </div>
 
+
+    <!-- ================= UNIQUE VALUES ================= -->
     <div class="card">
         <h2>Unique Values Count (df.nunique)</h2>
         <div class="table-container">
-            <div id="nuniqueTable"></div>
+            <div id="uniqueValues"></div>
         </div>
     </div>
 
@@ -181,7 +174,7 @@
     </div>
 
 
-    <!-- ================= HEATMAP ================= -->
+    <!-- ================= CORRELATION ================= -->
     <div class="card">
         <h2>Correlation Heatmap</h2>
         <canvas id="heatmapChart"></canvas>
@@ -205,7 +198,6 @@
     <!-- ================= PREVIEW ================= -->
     <div class="card">
         <h2>Dataset Preview (Head)</h2>
-
         <div class="table-container">
             <div id="preview"></div>
         </div>

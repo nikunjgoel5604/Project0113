@@ -1,11 +1,9 @@
 // ================= GLOBAL VARIABLES =================
 let histChart = null;
-let catChart = null;
 let heatmapChart = null;
 let missingChart = null;
 
 let globalData = null;
-let chartScale = 1;
 
 
 // ================= UPLOAD DATASET =================
@@ -39,22 +37,19 @@ document.getElementById("uploadBtn")
         globalData = data;
 
         loadOverview(data);
-        loadInsights(data);
-        loadPreview(data);
-        loadDropdowns(data);
-
         loadDatasetInfo(data);
-        loadNunique(data);
-        loadValueCounts(data);
+        loadUniqueValues(data);
         loadMissingProcess(data);
+        loadValueCounts(data);
+        loadPreview(data);
+        loadInsights(data);
 
-        drawCharts(data);
-        drawHeatmap(data);
-        drawMissing(data);
+        drawHistogram(data);
+        drawCorrelation(data);
 
     } catch (err) {
         console.error(err);
-        alert("Server error. Please try again.");
+        alert("Server error.");
     }
 });
 
@@ -74,120 +69,115 @@ function loadOverview(data) {
     document.getElementById("categoricalColumns").innerText =
         data.overview.categorical_columns.join(", ");
 
-    if (document.getElementById("datetimeColumns")) {
-        document.getElementById("datetimeColumns").innerText =
+    if (document.getElementById("dateColumns")) {
+        document.getElementById("dateColumns").innerText =
             data.overview.datetime_columns.join(", ");
     }
 
-    document.getElementById("duplicates").innerText =
-        data.data_quality.duplicates;
+    if (document.getElementById("duplicates")) {
+        document.getElementById("duplicates").innerText =
+            data.data_quality?.duplicates ?? 0;
+    }
 }
 
 
-// ================= DATASET STRUCTURE (df.info) =================
+// ================= DATASET INFO (df.info) =================
 function loadDatasetInfo(data) {
 
-    const box = document.getElementById("datasetInfo");
-    if (!box) return;
+    const infoBox = document.getElementById("datasetInfo");
 
-    let text = "";
+    if (!infoBox) return;
 
-    Object.keys(data.column_profile).forEach(col => {
-
-        const obj = data.column_profile[col];
-
-        text += `${col} | Type: ${obj.dtype} | Unique: ${obj.unique_values} | Missing: ${obj.missing_values}\n`;
-    });
-
-    box.innerText = text;
+    infoBox.innerHTML =
+        `<pre>${data.dataset_info}</pre>`;
 }
 
 
-// ================= UNIQUE COUNT =================
-function loadNunique(data) {
+// ================= UNIQUE VALUES =================
+function loadUniqueValues(data) {
 
-    const div = document.getElementById("nuniqueTable");
-    if (!div) return;
+    const box = document.getElementById("uniqueValues");
+
+    if (!box) return;
 
     let table = "<table><tr><th>Column</th><th>Unique Values</th></tr>";
 
-    Object.keys(data.column_profile).forEach(col => {
-        table += `<tr>
-                    <td>${col}</td>
-                    <td>${data.column_profile[col].unique_values}</td>
-                  </tr>`;
+    Object.entries(data.nunique).forEach(([col, val]) => {
+        table += `<tr><td>${col}</td><td>${val}</td></tr>`;
     });
 
     table += "</table>";
 
-    div.innerHTML = table;
-}
-
-
-// ================= VALUE COUNTS =================
-function loadValueCounts(data) {
-
-    const div = document.getElementById("valueCounts");
-    if (!div) return;
-
-    div.innerHTML = "";
-
-    const counts = data.visualization.category_counts;
-
-    Object.keys(counts).forEach(col => {
-
-        div.innerHTML += `<h4>${col}</h4>`;
-
-        let table = "<table><tr><th>Value</th><th>Count</th></tr>";
-
-        Object.keys(counts[col]).forEach(value => {
-            table += `<tr>
-                        <td>${value}</td>
-                        <td>${counts[col][value]}</td>
-                      </tr>`;
-        });
-
-        table += "</table><br>";
-
-        div.innerHTML += table;
-    });
+    box.innerHTML = table;
 }
 
 
 // ================= MISSING HANDLING PROCESS =================
 function loadMissingProcess(data) {
 
-    const div = document.getElementById("missingProcess");
-    if (!div) return;
+    const box = document.getElementById("missingProcess");
 
-    const missing = data.data_quality.missing_values;
+    if (!box) return;
 
-    let table = "<table><tr><th>Column</th><th>Missing Count</th></tr>";
+    let table = `
+        <table>
+            <tr>
+                <th>Column</th>
+                <th>Missing Before</th>
+                <th>Missing After</th>
+                <th>Method Used</th>
+            </tr>
+    `;
 
-    Object.keys(missing).forEach(col => {
-        table += `<tr>
-                    <td>${col}</td>
-                    <td>${missing[col]}</td>
-                  </tr>`;
+    Object.entries(data.missing_handling_process)
+    .forEach(([col, obj]) => {
+
+        table += `
+            <tr>
+                <td>${col}</td>
+                <td>${obj.missing_before}</td>
+                <td>${obj.missing_after}</td>
+                <td>${obj.method}</td>
+            </tr>
+        `;
     });
 
     table += "</table>";
 
-    div.innerHTML = table;
+    box.innerHTML = table;
 }
 
 
-// ================= INSIGHTS =================
-function loadInsights(data) {
+// ================= VALUE COUNTS =================
+function loadValueCounts(data) {
 
-    const insightBox = document.getElementById("insights");
-    insightBox.innerHTML = "";
+    const box = document.getElementById("valueCounts");
 
-    data.insights.forEach(i => {
-        const li = document.createElement("li");
-        li.innerText = i;
-        insightBox.appendChild(li);
+    if (!box) return;
+
+    let html = "";
+
+    Object.entries(data.value_counts)
+    .forEach(([col, counts]) => {
+
+        html += `<h3>${col}</h3>`;
+        html += "<table><tr><th>Value</th><th>Count</th></tr>";
+
+        Object.entries(counts)
+        .forEach(([val, count]) => {
+
+            html += `
+                <tr>
+                    <td>${val}</td>
+                    <td>${count}</td>
+                </tr>
+            `;
+        });
+
+        html += "</table><br>";
     });
+
+    box.innerHTML = html;
 }
 
 
@@ -195,9 +185,8 @@ function loadInsights(data) {
 function loadPreview(data) {
 
     const previewDiv = document.getElementById("preview");
-    previewDiv.innerHTML = "";
 
-    if (!data.preview || data.preview.length === 0) return;
+    if (!previewDiv || !data.preview) return;
 
     let table = "<table><tr>";
 
@@ -209,9 +198,11 @@ function loadPreview(data) {
 
     data.preview.forEach(row => {
         table += "<tr>";
+
         Object.values(row).forEach(val => {
             table += `<td>${val ?? ""}</td>`;
         });
+
         table += "</tr>";
     });
 
@@ -221,38 +212,39 @@ function loadPreview(data) {
 }
 
 
-// ================= DROPDOWNS =================
-function loadDropdowns(data) {
+// ================= INSIGHTS =================
+function loadInsights(data) {
 
-    const numSelect = document.getElementById("numericSelect");
-    const catSelect = document.getElementById("categorySelect");
+    const insightBox = document.getElementById("insights");
 
-    if (!numSelect || !catSelect) return;
+    if (!insightBox) return;
 
-    numSelect.innerHTML = "";
-    catSelect.innerHTML = "";
+    insightBox.innerHTML = "";
 
-    data.overview.numeric_columns.forEach(col => {
-        numSelect.innerHTML += `<option>${col}</option>`;
-    });
-
-    data.overview.categorical_columns.forEach(col => {
-        catSelect.innerHTML += `<option>${col}</option>`;
+    data.insights.forEach(i => {
+        const li = document.createElement("li");
+        li.innerText = i;
+        insightBox.appendChild(li);
     });
 }
 
 
-// ================= CHARTS =================
-function drawCharts(data) {
+// ================= HISTOGRAM =================
+function drawHistogram(data) {
 
-    const numCol = document.getElementById("numericSelect").value;
-    const catCol = document.getElementById("categorySelect").value;
+    const numericCols =
+        data.overview.numeric_columns;
+
+    if (!numericCols.length) return;
+
+    const firstCol = numericCols[0];
+
+    const histData =
+        data.visualization.histograms[firstCol];
+
+    if (!histData) return;
 
     if (histChart) histChart.destroy();
-    if (catChart) catChart.destroy();
-
-    const histData = data.visualization.histograms[numCol];
-    if (!histData) return;
 
     histChart = new Chart(
         document.getElementById("histChart"),
@@ -261,25 +253,39 @@ function drawCharts(data) {
             data: {
                 labels: histData.bins,
                 datasets: [{
-                    label: numCol,
+                    label: firstCol,
                     data: histData.counts
                 }]
-            }
+            },
+            options: { responsive: true }
         }
     );
+}
 
-    const obj = data.visualization.category_counts[catCol];
-    if (!obj) return;
 
-    catChart = new Chart(
-        document.getElementById("catChart"),
+// ================= CORRELATION =================
+function drawCorrelation(data) {
+
+    const corr =
+        data.advanced_visualization.correlation;
+
+    if (!corr) return;
+
+    const labels = Object.keys(corr);
+
+    if (!labels.length) return;
+
+    if (heatmapChart) heatmapChart.destroy();
+
+    heatmapChart = new Chart(
+        document.getElementById("heatmapChart"),
         {
             type: "bar",
             data: {
-                labels: Object.keys(obj),
+                labels: labels,
                 datasets: [{
-                    label: catCol,
-                    data: Object.values(obj)
+                    label: "Correlation",
+                    data: Object.values(corr[labels[0]])
                 }]
             }
         }
