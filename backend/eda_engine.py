@@ -22,9 +22,10 @@ def clean_json(obj):
 
 # =====================================================
 # DATE DETECTION
-# Supports multiple formats automatically
 # =====================================================
 def try_parse_dates(df):
+
+    detected_dates = []
 
     for col in df.columns:
 
@@ -37,14 +38,14 @@ def try_parse_dates(df):
                     dayfirst=True
                 )
 
-                # Convert only if majority parsed
                 if parsed.notna().sum() > len(df) * 0.6:
                     df[col] = parsed
+                    detected_dates.append(col)
 
             except:
                 pass
 
-    return df
+    return df, detected_dates
 
 
 # =====================================================
@@ -59,15 +60,17 @@ def safe_to_numeric(series):
 
 
 # =====================================================
-# HANDLE MISSING VALUES (ETL)
+# HANDLE MISSING VALUES (WITH STRATEGY LOG)
 # =====================================================
 def handle_missing_values(df):
+
+    strategy_log = {}
+    missing_before = df.isnull().sum().to_dict()
 
     for col in df.columns:
 
         converted = safe_to_numeric(df[col])
 
-        # convert to numeric if majority numeric
         if converted.notna().sum() > len(df) * 0.6:
             df[col] = converted
 
@@ -78,6 +81,7 @@ def handle_missing_values(df):
 
             if not np.isnan(mean_val):
                 df[col] = df[col].fillna(mean_val)
+                strategy_log[col] = "Filled with mean"
 
         # STRING
         elif df[col].dtype == "object":
@@ -86,8 +90,11 @@ def handle_missing_values(df):
 
             if len(mode_val) > 0:
                 df[col] = df[col].fillna(mode_val[0])
+                strategy_log[col] = "Filled with mode"
 
-    return df
+    missing_after = df.isnull().sum().to_dict()
+
+    return df, strategy_log, missing_before, missing_after
 
 
 # =====================================================
@@ -97,9 +104,11 @@ def perform_eda(df):
 
     df = df.copy()
 
-    # ---------------- ETL ----------------
-    df = try_parse_dates(df)
-    df = handle_missing_values(df)
+    # ---------------- DATE DETECTION ----------------
+    df, detected_dates = try_parse_dates(df)
+
+    # ---------------- HANDLE MISSING ----------------
+    df, strategy_log, missing_before, missing_after = handle_missing_values(df)
 
     rows, columns = df.shape
 
@@ -115,7 +124,7 @@ def perform_eda(df):
         column_profile[col] = {
             "dtype": str(df[col].dtype),
             "unique_values": int(df[col].nunique()),
-            "missing_values": int(df[col].isnull().sum())
+            "missing_values": int(missing_after[col])
         }
 
     # ---------------- HISTOGRAM DATA ----------------
@@ -134,17 +143,21 @@ def perform_eda(df):
                 "counts": counts.tolist()
             }
 
-    # ---------------- CATEGORY COUNTS ----------------
+    # ---------------- CATEGORY COUNTS (FULL + %) ----------------
     category_counts = {}
 
     for col in categorical_cols:
-        category_counts[col] = (
-            df[col]
-            .astype(str)
-            .value_counts()
-            .head(20)       # performance safe
-            .to_dict()
-        )
+
+        value_counts = df[col].astype(str).value_counts()
+        total = len(df)
+
+        category_counts[col] = {
+            value: {
+                "count": int(count),
+                "percentage": round((count / total) * 100, 2)
+            }
+            for value, count in value_counts.items()
+        }
 
     # ---------------- CORRELATION ----------------
     correlation = {}
@@ -165,8 +178,16 @@ def perform_eda(df):
             .to_dict()
         )
 
+    # ---------------- DATE SUMMARY ----------------
+    date_summary = {}
+
+    for col in datetime_cols:
+        date_summary[col] = {
+            "min_date": str(df[col].min()),
+            "max_date": str(df[col].max())
+        }
+
     # ---------------- DATA QUALITY ----------------
-    missing_values = df.isnull().sum().to_dict()
     duplicates = int(df.duplicated().sum())
 
     # ---------------- INSIGHTS ----------------
@@ -198,7 +219,9 @@ def perform_eda(df):
         "column_profile": column_profile,
 
         "data_quality": {
-            "missing_values": missing_values,
+            "missing_before": missing_before,
+            "missing_after": missing_after,
+            "missing_strategy": strategy_log,
             "duplicates": duplicates
         },
 
@@ -211,8 +234,10 @@ def perform_eda(df):
 
         "advanced_visualization": {
             "correlation": correlation,
-            "missing_values": missing_values
+            "missing_values": missing_after
         },
+
+        "date_summary": date_summary,
 
         "insights": insights
     }
