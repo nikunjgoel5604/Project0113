@@ -98,6 +98,23 @@ function ts() {
 
 
 // =====================================================
+//  LIVE CODE DISPLAY (NEW!)
+// =====================================================
+function addLog(message) {
+    const statusLog = document.getElementById('statusLog');
+    if (!statusLog) return;
+
+    const time = ts();
+    const line = `[${time}] ${message}`;
+
+    statusLog.textContent += (statusLog.textContent ? '\n' : '') + line;
+
+    // Auto-scroll to bottom
+    statusLog.parentElement.scrollTop = statusLog.parentElement.scrollHeight;
+}
+
+
+// =====================================================
 //  UPLOAD + RUN EDA
 // =====================================================
 document.getElementById("uploadBtn")
@@ -122,26 +139,31 @@ document.getElementById("uploadBtn")
     const statusLog  = document.getElementById('statusLog');
 
     if (statusCard) statusCard.style.display = 'block';
-    if (statusLog)  statusLog.textContent =
-        `[${ts()}] Uploading: ${file.name}\n` +
-        `[${ts()}] File size: ${(file.size / 1024).toFixed(1)} KB\n` +
-        `[${ts()}] Running EDA pipeline...`;
+    if (statusLog)  statusLog.textContent = '';
+
+    addLog(`📁 Uploading file: ${file.name}`);
+    addLog(`📊 File size: ${(file.size / 1024).toFixed(1)} KB`);
+    addLog(`⚙️ Running EDA pipeline...`);
 
     try {
         // ✅ FormData built fresh inside try block — prevents DataCloneError
         const formData = new FormData();
         formData.append("file", file);
 
+        addLog(`📤 Sending to server...`);
+
         const response = await fetch("/upload", {
             method: "POST",
             body: formData
         });
 
+        addLog(`📡 Server response received`);
+
         const data = await response.json();
 
         if (!response.ok || data.error) {
             const errMsg = data.error || "Error processing dataset";
-            if (statusLog) statusLog.textContent += `\n[${ts()}] ERROR: ${errMsg}`;
+            addLog(`❌ ERROR: ${errMsg}`);
             alert(errMsg);
             if (btn)     btn.disabled = false;
             if (btnText) btnText.textContent = 'RUN ANALYSIS';
@@ -150,9 +172,13 @@ document.getElementById("uploadBtn")
 
         globalData = data;
 
-        if (statusLog) statusLog.textContent +=
-            `\n[${ts()}] Done. Rows: ${data.overview.rows} | Cols: ${data.overview.columns}\n` +
-            `[${ts()}] Rendering dashboard...`;
+        addLog(`✅ EDA Complete`);
+        addLog(`📈 Dataset: ${data.overview.rows.toLocaleString()} rows × ${data.overview.columns} columns`);
+        addLog(`🔢 Numeric columns: ${data.overview.numeric_columns.length}`);
+        addLog(`📝 Categorical columns: ${data.overview.categorical_columns.length}`);
+        addLog(`📅 DateTime columns: ${data.overview.datetime_columns.length}`);
+        addLog(`🧹 Duplicate rows: ${data.data_quality?.duplicates ?? 0}`);
+        addLog(`🔄 Rendering dashboard components...`);
 
         // ── Old-style loaders (keep working if old HTML is used) ──
         loadOverview(data);
@@ -168,6 +194,8 @@ document.getElementById("uploadBtn")
         // ── New-style renderers (new HTML sections) ──
         renderAll(data);
 
+        addLog(`✨ Dashboard ready to explore!`);
+
         if (btn)     btn.disabled = false;
         if (btnText) btnText.textContent = 'RUN ANALYSIS';
 
@@ -178,7 +206,7 @@ document.getElementById("uploadBtn")
 
     } catch (err) {
         console.error(err);
-        if (statusLog) statusLog.textContent += `\n[${ts()}] SERVER ERROR: ${err}`;
+        addLog(`💥 SERVER ERROR: ${err.message}`);
         alert("Server error: " + err.message);
         if (btn)     btn.disabled = false;
         if (btnText) btnText.textContent = 'RUN ANALYSIS';
@@ -423,7 +451,7 @@ function renderOverview(d) {
 
 
 // =====================================================
-//  NEW DATA QUALITY SECTION
+//  NEW DATA QUALITY SECTION WITH FIXED TOGGLE
 // =====================================================
 function renderQuality(d) {
     const mp    = d.missing_handling_process;
@@ -435,67 +463,8 @@ function renderQuality(d) {
     const missingCols = Object.entries(mp).filter(([, v]) => v.missing_before > 0);
     set('q-missing-cols', missingCols.length);
 
-    // ── Missing value bars ──
-    const barsDiv = document.getElementById('missingBars');
-    if (barsDiv) {
-        barsDiv.innerHTML = '';
-        const rows    = d.overview.rows;
-        const allCols = Object.entries(mp);
-        const hasMissing = allCols.some(([, v]) => v.missing_before > 0);
-
-        if (!hasMissing) {
-            barsDiv.innerHTML = '<p style="color:var(--green);font-family:var(--font-mono);font-size:13px;">✔ No missing values found in dataset.</p>';
-        } else {
-            allCols.forEach(([col, val]) => {
-                if (val.missing_before === 0) return;
-                const pct = rows > 0 ? ((val.missing_before / rows) * 100).toFixed(1) : 0;
-                barsDiv.innerHTML += `
-                    <div class="missing-row">
-                        <div class="missing-col-name">${col}</div>
-                        <div class="missing-bar-track">
-                            <div class="missing-bar-fill" style="width:${Math.min(pct, 100)}%"></div>
-                        </div>
-                        <div class="missing-pct">${pct}%</div>
-                    </div>
-                `;
-            });
-        }
-    }
-
-    // ── Missing value chart (old canvas) ──
-    const missingCanvas = document.getElementById('missingChart');
-    if (missingCanvas) {
-        const rows    = d.overview.rows;
-        const entries = Object.entries(mp).filter(([, v]) => v.missing_before > 0);
-
-        if (entries.length > 0) {
-            if (missingChart) missingChart.destroy();
-            missingChart = new Chart(missingCanvas, {
-                type: 'bar',
-                data: {
-                    labels: entries.map(([col]) => col),
-                    datasets: [{
-                        label: 'Missing Values',
-                        data:  entries.map(([, v]) => v.missing_before),
-                        backgroundColor: 'rgba(255,82,82,0.6)',
-                        borderColor:     'rgba(255,82,82,0.9)',
-                        borderWidth: 1,
-                        borderRadius: 3
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    plugins: {
-                        legend: { labels: { color: '#7986a3' } }
-                    },
-                    scales: {
-                        x: { ticks: { color: '#7986a3' }, grid: { color: 'rgba(37,45,61,0.6)' } },
-                        y: { ticks: { color: '#7986a3' }, grid: { color: 'rgba(37,45,61,0.6)' } }
-                    }
-                }
-            });
-        }
-    }
+    // ── Setup toggle buttons ──
+    setupMissingToggle(d);
 
     // ── Cleaning table ──
     const tbody = document.getElementById('cleaningBody');
@@ -504,18 +473,173 @@ function renderQuality(d) {
 
     Object.entries(mp).forEach(([col, val]) => {
         const fixed = val.missing_before > val.missing_after;
+        const status = val.missing_before === 0 ? '✔ Clean'
+                     : fixed ? '✔ Fixed'
+                     : '⚠ Remaining';
+
         tbody.innerHTML += `
             <tr>
                 <td style="font-family:var(--font-mono);font-size:11px;color:var(--accent)">${col}</td>
+                <td style="font-family:var(--font-mono);font-size:11px;color:var(--text-dim)">${val.col_type || '—'}</td>
                 <td style="color:${val.missing_before > 0 ? 'var(--red)' : 'var(--text-dim)'}">${val.missing_before}</td>
                 <td style="color:${val.missing_after  > 0 ? 'var(--yellow)' : 'var(--green)'}">${val.missing_after}</td>
-                <td>${val.method}</td>
-                <td style="color:${fixed || val.missing_before === 0 ? 'var(--green)' : 'var(--yellow)'}">
-                    ${val.missing_before === 0 ? '✔ Clean' : fixed ? '✔ Fixed' : '⚠ Remaining'}
+                <td style="font-family:var(--font-mono);font-size:10px;color:var(--text-dim)">${val.fill_value ?? '—'}</td>
+                <td style="font-family:var(--font-mono);font-size:10px;color:var(--accent)">${val.method || '—'}</td>
+                <td style="color:${val.missing_before === 0 || fixed ? 'var(--green)' : 'var(--yellow)'}">
+                    ${status}
                 </td>
             </tr>
         `;
     });
+}
+
+// ══════════════════════════════════════════════════════
+// MISSING VALUE TOGGLE HANDLER (NEW!)
+// ══════════════════════════════════════════════════════
+function setupMissingToggle(d) {
+    const btnBefore    = document.getElementById('btnMissingBefore');
+    const btnHandling  = document.getElementById('btnMissingHandling');
+    const btnAfter     = document.getElementById('btnMissingAfter');
+    const panelDiv     = document.getElementById('missingPanel');
+
+    if (!btnBefore || !btnHandling || !btnAfter || !panelDiv) return;
+
+    // Remove old listeners
+    const newBtnBefore   = btnBefore.cloneNode(true);
+    const newBtnHandling = btnHandling.cloneNode(true);
+    const newBtnAfter    = btnAfter.cloneNode(true);
+
+    btnBefore.parentNode.replaceChild(newBtnBefore, btnBefore);
+    btnHandling.parentNode.replaceChild(newBtnHandling, btnHandling);
+    btnAfter.parentNode.replaceChild(newBtnAfter, btnAfter);
+
+    // Default: show BEFORE
+    renderMissingBefore(d, panelDiv);
+    newBtnBefore.classList.add('active');
+
+    newBtnBefore.addEventListener('click', () => {
+        newBtnBefore.classList.add('active');
+        newBtnHandling.classList.remove('active');
+        newBtnAfter.classList.remove('active');
+        renderMissingBefore(d, panelDiv);
+    });
+
+    newBtnHandling.addEventListener('click', () => {
+        newBtnBefore.classList.remove('active');
+        newBtnHandling.classList.add('active');
+        newBtnAfter.classList.remove('active');
+        renderMissingHandling(d, panelDiv);
+    });
+
+    newBtnAfter.addEventListener('click', () => {
+        newBtnBefore.classList.remove('active');
+        newBtnHandling.classList.remove('active');
+        newBtnAfter.classList.add('active');
+        renderMissingAfter(d, panelDiv);
+    });
+}
+
+function renderMissingBefore(d, panelDiv) {
+    const mp = d.missing_handling_process;
+    let html = `
+        <div class="mv-view-title">📋 DATASET STATE BEFORE CLEANING</div>
+        <div class="mv-summary">
+            <div class="mv-chip red">${Object.values(mp).filter(v => v.missing_before > 0).length} columns with missing</div>
+            <div class="mv-chip yellow">${Object.values(mp).reduce((a, v) => a + v.missing_before, 0)} total missing values</div>
+        </div>
+    `;
+
+    Object.entries(mp).forEach(([col, val]) => {
+        if (val.missing_before === 0) return;
+        const pct = d.overview.rows > 0 ? ((val.missing_before / d.overview.rows) * 100).toFixed(1) : 0;
+        html += `
+            <div class="mv-block" style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-family:var(--font-mono);color:var(--accent);font-size:11px;">${col}</span>
+                    <span style="color:var(--red);font-family:var(--font-mono);font-size:11px;">${val.missing_before} missing (${pct}%)</span>
+                </div>
+                <div class="progress-wrap">
+                    <div class="progress-fill" style="width:${pct}%;background:var(--red);"></div>
+                </div>
+            </div>
+        `;
+    });
+
+    panelDiv.innerHTML = html;
+}
+
+function renderMissingHandling(d, panelDiv) {
+    const mp = d.missing_handling_process;
+    let html = `
+        <div class="mv-view-title">⚙️ HANDLING STRATEGY</div>
+    `;
+
+    const numeric = [];
+    const categorical = [];
+
+    Object.entries(mp).forEach(([col, val]) => {
+        if (val.col_type === 'Numeric') numeric.push([col, val]);
+        else if (val.col_type === 'Categorical') categorical.push([col, val]);
+    });
+
+    if (numeric.length > 0) {
+        html += `<div style="margin-bottom:16px;">
+            <div style="color:var(--green);font-family:var(--font-mono);font-size:12px;margin-bottom:8px;">🔢 NUMERIC COLUMNS</div>`;
+        numeric.forEach(([col, val]) => {
+            html += `
+                <div class="mv-block" style="margin-bottom:8px;">
+                    <div style="color:var(--accent);font-family:var(--font-mono);font-size:11px;margin-bottom:6px;">${col}</div>
+                    <div style="color:var(--text-dim);font-size:12px;">→ ${val.fill_strategy || 'No missing values'}</div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+
+    if (categorical.length > 0) {
+        html += `<div>
+            <div style="color:var(--yellow);font-family:var(--font-mono);font-size:12px;margin-bottom:8px;">📝 CATEGORICAL COLUMNS</div>`;
+        categorical.forEach(([col, val]) => {
+            html += `
+                <div class="mv-block" style="margin-bottom:8px;">
+                    <div style="color:var(--accent);font-family:var(--font-mono);font-size:11px;margin-bottom:6px;">${col}</div>
+                    <div style="color:var(--text-dim);font-size:12px;">→ ${val.fill_strategy || 'No missing values'}</div>
+                </div>
+            `;
+        });
+        html += '</div>';
+    }
+
+    panelDiv.innerHTML = html;
+}
+
+function renderMissingAfter(d, panelDiv) {
+    const mp = d.missing_handling_process;
+    const remaining = Object.values(mp).filter(v => v.missing_after > 0);
+    let html = `
+        <div class="mv-view-title">✅ DATASET STATE AFTER CLEANING</div>
+        <div class="mv-summary">
+            <div class="mv-chip green">${remaining.length === 0 ? '✔ All missing values handled!' : remaining.length + ' columns still have missing'}</div>
+            <div class="mv-chip accent2">${d.overview.rows.toLocaleString()} rows preserved</div>
+        </div>
+    `;
+
+    Object.entries(mp).forEach(([col, val]) => {
+        const status = val.missing_after === 0 ? '✔ Clean' : '⚠ Remaining';
+        const statusColor = val.missing_after === 0 ? 'var(--green)' : 'var(--yellow)';
+        html += `
+            <div class="mv-block" style="margin-bottom:12px;">
+                <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+                    <span style="font-family:var(--font-mono);color:var(--accent);font-size:11px;">${col}</span>
+                    <span style="color:${statusColor};font-family:var(--font-mono);font-size:11px;">${status}</span>
+                </div>
+                <div style="color:var(--text-dim);font-size:11px;margin-bottom:6px;">Method: ${val.method}</div>
+                ${val.missing_after > 0 ? `<div style="color:var(--yellow);font-size:11px;">⚠ ${val.missing_after} still missing</div>` : ''}
+            </div>
+        `;
+    });
+
+    panelDiv.innerHTML = html;
 }
 
 
@@ -998,24 +1122,63 @@ function renderInsightsNew(d) {
 
 
 // =====================================================
-//  PREVIEW SECTION
+//  PREVIEW SECTION WITH VIEW OPTIONS (NEW!)
 // =====================================================
 function renderPreviewNew(d) {
     const div = document.getElementById('previewTable');
     if (!div || !d.preview?.length) return;
 
-    const cols = Object.keys(d.preview[0]);
+    const controlsDiv = document.createElement('div');
+    controlsDiv.style.cssText = 'margin-bottom:16px;display:flex;gap:10px;flex-wrap:wrap;';
+    controlsDiv.innerHTML = `
+        <button class="btn btn-outline" data-view="head5">HEAD(5)</button>
+        <button class="btn btn-outline" data-view="head20">HEAD(20)</button>
+        <button class="btn btn-outline" data-view="tail5">TAIL(5)</button>
+        <button class="btn btn-outline" data-view="tail20">TAIL(20)</button>
+        <button class="btn btn-primary" data-view="full">FULL DATASET</button>
+    `;
+
+    div.parentElement.insertBefore(controlsDiv, div);
+
+    // Button handlers
+    controlsDiv.querySelectorAll('button').forEach(btn => {
+        btn.addEventListener('click', () => {
+            controlsDiv.querySelectorAll('button').forEach(b => b.classList.remove('btn-primary'));
+            controlsDiv.querySelectorAll('button').forEach(b => b.classList.add('btn-outline'));
+            btn.classList.remove('btn-outline');
+            btn.classList.add('btn-primary');
+
+            const view = btn.dataset.view;
+            renderDataPreview(d, div, view);
+        });
+    });
+
+    // Default: HEAD(10)
+    renderDataPreview(d, div, 'head10');
+}
+
+function renderDataPreview(d, div, view) {
+    let data = d.preview;
+
+    if (view === 'head5')  data = d.preview.slice(0, 5);
+    else if (view === 'head20') data = d.preview.slice(0, 20);
+    else if (view === 'tail5')  data = d.preview.slice(-5);
+    else if (view === 'tail20') data = d.preview.slice(-20);
+    // else view === 'full' — use all
+
+    const cols = Object.keys(data[0]);
     let html = '<table><thead><tr>';
-    cols.forEach(c => { html += `<th>${c}</th>`; });
+    cols.forEach((c, i) => { html += `<th>#${i + 1}<br>${c}</th>`; });
     html += '</tr></thead><tbody>';
 
-    d.preview.forEach(row => {
+    data.forEach((row, rowIdx) => {
         html += '<tr>';
-        cols.forEach(c => { html += `<td>${row[c] ?? ''}</td>`; });
+        cols.forEach(c => { html += `<td>${row[c] ?? '—'}</td>`; });
         html += '</tr>';
     });
 
     html += '</tbody></table>';
+    html = `<p style="color:var(--text-dim);font-size:12px;margin-bottom:12px;font-family:var(--font-mono);">Showing ${data.length} of ${d.preview.length} rows</p>` + html;
     div.innerHTML = html;
 }
 

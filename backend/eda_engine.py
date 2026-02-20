@@ -4,20 +4,28 @@ from io import StringIO
 
 
 # =====================================================
-# SAFE JSON CONVERSION
+# SAFE JSON CONVERSION (IMPROVED)
 # =====================================================
 def clean_json(obj):
+    """Recursively clean object for JSON serialization"""
     if isinstance(obj, dict):
         return {k: clean_json(v) for k, v in obj.items()}
     elif isinstance(obj, list):
         return [clean_json(v) for v in obj]
+    elif isinstance(obj, np.ndarray):
+        return obj.tolist()
     elif isinstance(obj, float):
         if np.isnan(obj) or np.isinf(obj):
             return None
-    elif isinstance(obj, (np.integer,)):
-        return int(obj)
-    elif isinstance(obj, (np.floating,)):
         return float(obj)
+    elif isinstance(obj, (np.integer, np.int64)):
+        return int(obj)
+    elif isinstance(obj, (np.floating, np.float64)):
+        return float(obj)
+    elif isinstance(obj, bool):
+        return bool(obj)
+    elif pd.isna(obj):
+        return None
     return obj
 
 
@@ -74,71 +82,74 @@ def try_parse_dates(df):
 
 
 # =====================================================
-# DETERMINE COLUMN CATEGORY
-# Returns: "Numeric" | "Categorical"
+# DETERMINE COLUMN CATEGORY (IMPROVED)
 # =====================================================
 def get_col_category(series):
     """
     Decide if a column should be treated as Numeric or Categorical.
-    Even if dtype is object, check if values are mostly numeric.
+    Handles mixed types, booleans, etc.
     """
+    # Check for boolean
+    if series.dtype == bool:
+        return "Categorical"
+
+    # Check for numeric types
     if pd.api.types.is_numeric_dtype(series):
         return "Numeric"
 
+    # Check if object column is actually numeric
     if series.dtype == "object":
         converted = pd.to_numeric(series, errors="coerce")
-        if converted.notna().sum() > len(series) * 0.6:
+        if converted.notna().sum() > len(series) * 0.7:
             return "Numeric"
 
     return "Categorical"
 
 
 # =====================================================
-# CAPTURE FULL "BEFORE" SNAPSHOT
-# Captures missing state + what fill value WILL be used
-# for EVERY column — both Numeric and Categorical
+# CAPTURE FULL "BEFORE" SNAPSHOT (IMPROVED)
 # =====================================================
 def capture_before_snapshot(df):
     snapshot = {}
     total_rows = len(df)
 
     for col in df.columns:
-
         missing_count = int(df[col].isnull().sum())
         col_category  = get_col_category(df[col])
         fill_value    = None
         fill_strategy = "No Action Needed"
 
-        # ── Pre-compute fill value so we show it BEFORE cleaning ──
+        # ── Pre-compute fill value ──
         if col_category == "Numeric":
-            # Work on numeric version of the column
             num_series = pd.to_numeric(df[col], errors="coerce") \
                          if df[col].dtype == "object" else df[col]
             if missing_count > 0:
                 mean_val = num_series.mean()
                 if mean_val is not None and not np.isnan(float(mean_val)):
                     fill_value    = round(float(mean_val), 4)
-                    fill_strategy = f"Will fill {missing_count} missing with Mean = {fill_value}"
+                    fill_strategy = f"Fill {missing_count} missing with Mean = {fill_value}"
                 else:
                     fill_strategy = "Mean is NaN — cannot fill"
 
         elif col_category == "Categorical":
-            str_series = df[col].str.strip() if df[col].dtype == "object" else df[col].astype(str)
+            str_series = df[col].astype(str).str.strip() if df[col].dtype == "object" else df[col].astype(str)
             if missing_count > 0:
-                mode_vals = str_series.mode(dropna=True)
+                mode_vals = str_series[str_series != 'nan'].mode()
                 if len(mode_vals) > 0:
                     fill_value    = str(mode_vals[0])
-                    fill_strategy = f"Will fill {missing_count} missing with Mode = '{fill_value}'"
+                    fill_strategy = f"Fill {missing_count} missing with Mode = '{fill_value}'"
                 else:
                     fill_strategy = "No mode found — cannot fill"
 
-        # Value counts BEFORE cleaning (top 10 for display)
-        if df[col].dtype == "object":
-            vc_before = df[col].str.strip().value_counts(dropna=False).head(10).to_dict()
-        else:
-            vc_before = df[col].value_counts(dropna=False).head(10).to_dict()
+        # Value counts BEFORE cleaning
+        try:
+            if df[col].dtype == "object":
+                vc_before = df[col].str.strip().value_counts(dropna=False).head(10).to_dict()
+            else:
+                vc_before = df[col].value_counts(dropna=False).head(10).to_dict()
+        except:
+            vc_before = {}
 
-        # Convert keys to string for JSON safety
         vc_before = {str(k): int(v) for k, v in vc_before.items()}
 
         snapshot[col] = {
@@ -148,33 +159,29 @@ def capture_before_snapshot(df):
             "fill_value":    str(fill_value) if fill_value is not None else None,
             "fill_strategy": fill_strategy,
             "total_rows":    total_rows,
-            "vc_before":     vc_before,   # value distribution BEFORE
+            "vc_before":     vc_before,
         }
 
     return snapshot
 
 
 # =====================================================
-# HANDLE MISSING VALUES
-# NUMERIC  → fillna with MEAN
-# STRING   → strip spaces, fillna with MODE
-# Returns: cleaned df + detailed report + before snapshot
+# HANDLE MISSING VALUES (IMPROVED)
 # =====================================================
 def handle_missing_values(df):
     handling_report = {}
 
-    # ── Capture BEFORE state first ──
+    # ── Capture BEFORE state ──
     before_snapshot = capture_before_snapshot(df)
 
     for col in df.columns:
-
         missing_before = int(df[col].isnull().sum())
         method         = "No Missing"
 
         # Convert object → numeric where appropriate
         if df[col].dtype == "object":
             converted = pd.to_numeric(df[col], errors="coerce")
-            if converted.notna().sum() > len(df) * 0.6:
+            if converted.notna().sum() > len(df) * 0.7:
                 df[col] = converted
 
         # ══════════════════════════════════════════
@@ -184,8 +191,9 @@ def handle_missing_values(df):
             if missing_before > 0:
                 mean_val = df[col].mean()
                 if not np.isnan(mean_val):
-                    df[col].fillna(df[col].mean(), inplace=True)
-                    method = f"Filled with Mean ({round(float(mean_val), 4)})"
+                    fill_val = round(float(mean_val), 4)
+                    df[col].fillna(fill_val, inplace=True)
+                    method = f"Filled with Mean ({fill_val})"
                 else:
                     method = "Mean is NaN — Left Empty"
 
@@ -193,11 +201,11 @@ def handle_missing_values(df):
         # CATEGORICAL (STRING) → strip + fill with MODE
         # ══════════════════════════════════════════
         elif df[col].dtype == "object":
-            # Step 1: Remove unwanted leading/trailing spaces
+            # Step 1: Remove leading/trailing spaces
             df[col] = df[col].str.strip()
 
             if missing_before > 0:
-                # Step 2: Find most frequent value (mode)
+                # Step 2: Find most frequent value
                 mode_series = df[col].mode(dropna=True)
                 if len(mode_series) > 0:
                     mode_value = mode_series[0]
@@ -209,11 +217,15 @@ def handle_missing_values(df):
 
         missing_after = int(df[col].isnull().sum())
 
-        # Value counts AFTER cleaning (top 10 for display)
-        if df[col].dtype == "object":
-            vc_after = df[col].value_counts(dropna=False).head(10).to_dict()
-        else:
-            vc_after = df[col].value_counts(dropna=False).head(10).to_dict()
+        # Value counts AFTER cleaning
+        try:
+            if df[col].dtype == "object":
+                vc_after = df[col].value_counts(dropna=False).head(10).to_dict()
+            else:
+                vc_after = df[col].value_counts(dropna=False).head(10).to_dict()
+        except:
+            vc_after = {}
+
         vc_after = {str(k): int(v) for k, v in vc_after.items()}
 
         handling_report[col] = {
@@ -263,170 +275,111 @@ def detect_outliers(df, numeric_cols):
 def statistical_summary(df, numeric_cols):
     if not numeric_cols:
         return {}
-    desc    = df[numeric_cols].describe().T
+
     summary = {}
     for col in numeric_cols:
         try:
+            s = df[col]
             summary[col] = {
-                "mean":     round(float(desc.loc[col, "mean"]), 4),
-                "median":   round(float(df[col].median()),      4),
-                "std":      round(float(desc.loc[col, "std"]),  4),
-                "min":      round(float(desc.loc[col, "min"]),  4),
-                "max":      round(float(desc.loc[col, "max"]),  4),
-                "25%":      round(float(desc.loc[col, "25%"]),  4),
-                "75%":      round(float(desc.loc[col, "75%"]),  4),
-                "skewness": round(float(df[col].skew()),        4),
-                "kurtosis": round(float(df[col].kurtosis()),    4),
+                "mean":     round(float(s.mean()), 4),
+                "median":   round(float(s.median()), 4),
+                "std":      round(float(s.std()), 4),
+                "min":      round(float(s.min()), 4),
+                "max":      round(float(s.max()), 4),
+                "25%":      round(float(s.quantile(0.25)), 4),
+                "75%":      round(float(s.quantile(0.75)), 4),
+                "skewness": round(float(s.skew()), 4),
+                "kurtosis": round(float(s.kurtosis()), 4),
             }
-        except Exception:
+        except Exception as e:
+            print(f"Error computing stats for {col}: {e}")
             pass
     return summary
 
 
 # =====================================================
-# BUILD BEFORE/AFTER COMPARISON TABLE
-# Powers the toggle button in the frontend
-# =====================================================
-def build_before_after_table(df_original_rows, handling_report, before_snapshot):
-    """
-    Returns a list of dicts — one per column that had missing values.
-    Each dict contains the full before and after picture.
-    """
-    rows = df_original_rows
-    table = []
-
-    for col, info in handling_report.items():
-        snap = before_snapshot.get(col, {})
-
-        # Only include columns that HAD missing values (cleaner output)
-        # But still include all for the full report — filter in JS
-        table.append({
-            "column":          col,
-            "col_type":        info.get("col_type", "—"),
-            "total_rows":      rows,
-
-            # ── BEFORE ──
-            "missing_before":  info.get("missing_before", 0),
-            "missing_pct":     snap.get("missing_pct", 0.0),
-            "fill_strategy":   snap.get("fill_strategy", "No Action"),
-            "fill_value":      snap.get("fill_value", None),
-            "vc_before":       snap.get("vc_before", {}),
-
-            # ── AFTER ──
-            "method_applied":  info.get("method", "—"),
-            "missing_after":   info.get("missing_after", 0),
-            "vc_after":        info.get("vc_after", {}),
-
-            # ── STATUS ──
-            "status": (
-                "✔ No Missing"  if info.get("missing_before", 0) == 0
-                else "✔ Fixed"  if info.get("missing_after", 0)  == 0
-                else "⚠ Partial"
-            ),
-        })
-
-    return table
-
-
-# =====================================================
-# SMART INSIGHTS GENERATOR
+# SMART INSIGHTS GENERATOR (IMPROVED)
 # =====================================================
 def generate_insights(df, numeric_cols, categorical_cols, datetime_cols,
                        handling_report, outlier_report, duplicates, date_format_map):
     insights = []
     rows, cols = df.shape
 
-    insights.append(f"Dataset has {rows:,} rows and {cols} columns.")
+    insights.append(f"📊 Dataset: {rows:,} rows × {cols} columns")
 
     if numeric_cols:
-        insights.append(
-            f"{len(numeric_cols)} numeric column(s): "
-            f"{', '.join(numeric_cols[:5])}{'...' if len(numeric_cols) > 5 else ''}."
-        )
+        num_str = ", ".join(numeric_cols[:5])
+        if len(numeric_cols) > 5:
+            num_str += f", +{len(numeric_cols)-5} more"
+        insights.append(f"🔢 {len(numeric_cols)} numeric column(s): {num_str}")
+
     if categorical_cols:
-        insights.append(
-            f"{len(categorical_cols)} categorical column(s): "
-            f"{', '.join(categorical_cols[:5])}{'...' if len(categorical_cols) > 5 else ''}."
-        )
+        cat_str = ", ".join(categorical_cols[:5])
+        if len(categorical_cols) > 5:
+            cat_str += f", +{len(categorical_cols)-5} more"
+        insights.append(f"📝 {len(categorical_cols)} categorical column(s): {cat_str}")
 
     if datetime_cols:
-        fmt_map = {
-            "%Y-%m-%d":          "ISO 8601 (YYYY-MM-DD) — International",
-            "%d/%m/%Y":          "DMY (DD/MM/YYYY) — India/UK/Australia",
-            "%m/%d/%Y":          "MDY (MM/DD/YYYY) — United States",
-            "%d-%m-%Y":          "DMY with hyphens (DD-MM-YYYY)",
-            "%d.%m.%Y":          "DMY with dots (DD.MM.YYYY)",
-            "%d %b %Y":          "Textual — 19 Feb 2025",
-            "%d %B %Y":          "Textual — 19 February 2025",
-            "%B %d, %Y":         "Textual — February 19, 2025",
-            "%Y-%m-%dT%H:%M:%S": "ISO 8601 with Time",
-            "auto-detected":     "Auto-detected by pandas",
-        }
-        for col in datetime_cols:
-            fmt = date_format_map.get(col, "unknown")
-            insights.append(f"Date column '{col}' detected — Format: {fmt_map.get(fmt, fmt)}.")
+        insights.append(f"📅 {len(datetime_cols)} datetime column(s) detected")
     else:
-        insights.append("No date columns detected.")
+        insights.append("✔ No date/time columns detected")
 
     if duplicates > 0:
-        pct = round((duplicates / rows) * 100, 1)
-        insights.append(f"⚠ {duplicates:,} duplicate rows found ({pct}% of dataset).")
+        pct = round((duplicates / rows) * 100, 1) if rows > 0 else 0
+        insights.append(f"⚠️ Found {duplicates:,} duplicate rows ({pct}% of dataset)")
     else:
-        insights.append("✔ No duplicate rows found.")
+        insights.append("✔ No duplicate rows found")
 
     missing_cols = [(c, v["missing_before"]) for c, v in handling_report.items() if v["missing_before"] > 0]
     if missing_cols:
         worst = max(missing_cols, key=lambda x: x[1])
-        insights.append(
-            f"⚠ {len(missing_cols)} column(s) had missing values. "
-            f"'{worst[0]}' had the most ({worst[1]:,} missing). All filled automatically."
-        )
-        for col, info in handling_report.items():
-            if info["missing_before"] > 0:
-                insights.append(
-                    f"  → '{col}' [{info['col_type']}]: "
-                    f"{info['missing_before']} missing. {info['method']}."
-                )
+        insights.append(f"⚠️ {len(missing_cols)} column(s) had missing values (max: {worst[0]} with {worst[1]:,})")
     else:
-        insights.append("✔ Dataset has no missing values — clean data!")
+        insights.append("✔ Dataset is clean — no missing values!")
 
-    for col, info in outlier_report.items():
-        if info["outliers_count"] > 0:
-            insights.append(
-                f"⚠ Outliers in '{col}': {info['outliers_count']} values outside "
-                f"[{info['lower_bound']}, {info['upper_bound']}] (IQR method)."
-            )
+    if outlier_report:
+        outlier_cols = [c for c, v in outlier_report.items() if v["outliers_count"] > 0]
+        if outlier_cols:
+            insights.append(f"⚠️ Outliers detected in {len(outlier_cols)} numeric column(s)")
 
     for col in numeric_cols:
         try:
             skew = float(df[col].skew())
-            if abs(skew) > 1:
-                direction = "right (positive)" if skew > 0 else "left (negative)"
-                insights.append(f"'{col}' is heavily skewed {direction} (skew={round(skew, 2)}).")
-        except Exception:
+            if abs(skew) > 1.5:
+                direction = "right (positive skew)" if skew > 0 else "left (negative skew)"
+                insights.append(f"↗️ '{col}' is heavily skewed {direction}")
+        except:
             pass
 
     for col in categorical_cols:
         n_unique = df[col].nunique()
-        if n_unique > rows * 0.8:
-            insights.append(f"'{col}' has very high cardinality ({n_unique} unique values) — likely an ID column.")
+        if n_unique > rows * 0.8 and rows > 0:
+            insights.append(f"🔑 '{col}' has very high cardinality ({n_unique} unique) — likely an ID column")
 
     for col in df.columns:
         if df[col].nunique() == 1:
-            insights.append(f"⚠ '{col}' has only 1 unique value — adds no information.")
+            insights.append(f"⚠️ '{col}' has only 1 unique value — adds no information")
 
     return insights
 
 
 # =====================================================
-# MAIN EDA FUNCTION
+# MAIN EDA FUNCTION (IMPROVED)
 # =====================================================
 def perform_eda(df):
+    """
+    Perform complete EDA on a DataFrame
+    Returns JSON-safe dictionary
+    """
+
+    # Validate input
+    if df is None or len(df) == 0:
+        return {"error": "Empty DataFrame"}
 
     df = df.copy()
     rows, columns = df.shape
 
-    # ── Raw df.info() BEFORE any changes ──
+    # ── Raw df.info() ──
     buffer = StringIO()
     df.info(buf=buffer)
     info_string = buffer.getvalue()
@@ -436,10 +389,10 @@ def perform_eda(df):
     # Step 1 — Date Detection
     df, detected_dates, date_format_map = try_parse_dates(df)
 
-    # Step 2 — Missing Value Handling (captures before + cleans + captures after)
+    # Step 2 — Missing Value Handling
     df, handling_report, before_snapshot = handle_missing_values(df)
 
-    # Step 3 — Column Types (after cleaning)
+    # Step 3 — Column Types
     numeric_cols     = df.select_dtypes(include=np.number).columns.tolist()
     categorical_cols = df.select_dtypes(include="object").columns.tolist()
     datetime_cols    = df.select_dtypes(include="datetime").columns.tolist()
@@ -453,15 +406,21 @@ def perform_eda(df):
     # Step 6 — Value Counts
     value_counts = {}
     for col in categorical_cols:
-        value_counts[col] = df[col].astype(str).value_counts().head(50).to_dict()
+        try:
+            value_counts[col] = df[col].astype(str).value_counts().head(50).to_dict()
+        except:
+            value_counts[col] = {}
 
-    # Step 7 — Histograms
+    # Step 7 — Histograms (for numeric columns)
     histograms = {}
     for col in numeric_cols:
         values = df[col].dropna()
         if len(values) > 0:
             counts, bins = np.histogram(values, bins=20)
-            histograms[col] = {"bins": bins[:-1].tolist(), "counts": counts.tolist()}
+            histograms[col] = {
+                "bins": bins[:-1].tolist(),
+                "counts": counts.tolist()
+            }
 
     # Step 8 — Correlation
     correlation = {}
@@ -472,7 +431,7 @@ def perform_eda(df):
     # Step 9 — Duplicates
     duplicates = int(df.duplicated().sum())
 
-    # Step 10 — Preview
+    # Step 10 — Preview (first 10 rows)
     preview = df.head(10).to_dict(orient="records")
 
     # Step 11 — Insights
@@ -481,12 +440,8 @@ def perform_eda(df):
         handling_report, outlier_report, duplicates, date_format_map
     )
 
-    # Step 12 — Before / After table for the toggle button
-    before_after_table = build_before_after_table(rows, handling_report, before_snapshot)
-
-    # ── Final response object ──
+    # ── Final response ──
     result = {
-
         "overview": {
             "rows":                rows,
             "columns":             columns,
@@ -499,9 +454,6 @@ def perform_eda(df):
         "dataset_info":             info_string,
         "nunique":                  nunique_data,
         "missing_handling_process": handling_report,
-
-        # ── Powers the Before / After button ──
-        "before_after_missing":     before_after_table,
 
         "data_quality": {
             "duplicates": duplicates,

@@ -35,21 +35,86 @@
             pointer-events: none; z-index: 9999;
         }
 
-        .shell { display: grid; grid-template-columns: 240px 1fr; min-height: 100vh; }
+        /* ════════════════════════════════════════
+           TRIPLE LAYOUT: SIDEBAR | MAIN | CODE PANEL
+        ════════════════════════════════════════ */
+        .shell {
+            display: grid;
+            grid-template-columns: 220px 1fr 280px;
+            min-height: 100vh;
+            gap: 0;
+        }
 
         /* SIDEBAR */
-        .sidebar { background: var(--surface); border-right: 1px solid var(--border); padding: 28px 0; position: sticky; top: 0; height: 100vh; overflow-y: auto; display: flex; flex-direction: column; }
+        .sidebar {
+            background: var(--surface);
+            border-right: 1px solid var(--border);
+            padding: 28px 0;
+            position: sticky;
+            top: 0;
+            height: 100vh;
+            overflow-y: auto;
+            display: flex;
+            flex-direction: column;
+        }
         .sidebar-logo { padding: 0 20px 28px; border-bottom: 1px solid var(--border); }
-        .sidebar-logo h1 { font-family: var(--font-mono); font-size: 14px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
-        .sidebar-logo p { font-size: 11px; color: var(--text-dim); margin-top: 4px; }
+        .sidebar-logo h1 { font-family: var(--font-mono); font-size: 13px; color: var(--accent); letter-spacing: 2px; text-transform: uppercase; }
+        .sidebar-logo p { font-size: 10px; color: var(--text-dim); margin-top: 4px; }
         .nav-section { padding: 20px 12px 0; }
-        .nav-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; padding: 0 8px; margin-bottom: 8px; }
-        .nav-item { display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius); font-size: 13px; color: var(--text-dim); cursor: pointer; transition: all 0.15s; border: 1px solid transparent; }
+        .nav-label { font-family: var(--font-mono); font-size: 9px; letter-spacing: 2px; color: var(--text-dim); text-transform: uppercase; padding: 0 8px; margin-bottom: 8px; }
+        .nav-item {
+            display: flex; align-items: center; gap: 10px; padding: 9px 12px; border-radius: var(--radius);
+            font-size: 12px; color: var(--text-dim); cursor: pointer; transition: all 0.15s; border: 1px solid transparent;
+        }
         .nav-item:hover, .nav-item.active { background: rgba(0,229,255,0.07); border-color: rgba(0,229,255,0.2); color: var(--accent); }
-        .nav-item .icon { font-size: 15px; }
+        .nav-item .icon { font-size: 14px; }
 
-        /* MAIN */
-        .main { padding: 32px; max-width: 1300px; }
+        /* MAIN CONTENT AREA */
+        .main {
+            padding: 32px;
+            max-width: 1100px;
+            overflow-y: auto;
+        }
+
+        /* CODE PANEL (RIGHT) */
+        .code-panel {
+            background: var(--surface2);
+            border-left: 1px solid var(--border);
+            padding: 20px;
+            height: 100vh;
+            overflow-y: auto;
+            font-family: var(--font-mono);
+            font-size: 10px;
+            color: var(--text-dim);
+            display: flex;
+            flex-direction: column;
+        }
+        .code-panel-header {
+            font-size: 11px;
+            color: var(--accent);
+            letter-spacing: 2px;
+            text-transform: uppercase;
+            margin-bottom: 12px;
+            padding-bottom: 8px;
+            border-bottom: 1px solid var(--border);
+        }
+        .code-panel-content {
+            flex: 1;
+            overflow-y: auto;
+            background: rgba(0,0,0,0.2);
+            border-radius: var(--radius);
+            padding: 12px;
+            line-height: 1.6;
+            word-break: break-word;
+            white-space: pre-wrap;
+        }
+        .code-line {
+            margin-bottom: 4px;
+            color: var(--text-dim);
+        }
+        .code-line.keyword { color: var(--accent2); }
+        .code-line.value { color: var(--accent); }
+        .code-line.error { color: var(--red); }
 
         /* SECTIONS */
         .section { display: none; }
@@ -110,53 +175,14 @@
         /* CHART */
         .chart-container { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px; position: relative; }
 
-        /* CHART BUILDER */
-        .chart-builder-grid { display: grid; grid-template-columns: repeat(3, 1fr) auto; gap: 14px; align-items: end; margin-bottom: 20px; }
-        .form-group { display: flex; flex-direction: column; gap: 6px; }
-        .form-label { font-family: var(--font-mono); font-size: 10px; letter-spacing: 1px; color: var(--text-dim); text-transform: uppercase; }
-        select, input[type="text"] { background: var(--surface2); border: 1px solid var(--border); border-radius: var(--radius); color: var(--text); padding: 9px 12px; font-family: var(--font-body); font-size: 13px; width: 100%; transition: border-color 0.15s; -webkit-appearance: none; }
-        select:focus, input[type="text"]:focus { outline: none; border-color: var(--accent); }
-
-        /* CHART PILLS */
-        .chart-type-grid { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 20px; }
-        .chart-pill { font-family: var(--font-mono); font-size: 11px; padding: 7px 14px; border-radius: 20px; border: 1px solid var(--border); color: var(--text-dim); cursor: pointer; transition: all 0.15s; background: transparent; }
-        .chart-pill:hover { border-color: var(--accent2); color: var(--accent2); }
-        .chart-pill.active { background: var(--accent2); border-color: var(--accent2); color: #fff; }
-
-        /* MISSING BARS */
-        .missing-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
-        .missing-col-name { width: 160px; color: var(--text-dim); font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-        .missing-bar-track { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
-        .missing-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
-        .missing-pct { width: 42px; text-align: right; font-family: var(--font-mono); font-size: 11px; }
-
-        /* INSIGHTS */
-        .insight-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-dim); }
-        .insight-item:last-child { border-bottom: none; }
-        .insight-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
-
-        /* PROGRESS */
-        .progress-wrap { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 6px; }
-        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 4px; transition: width 0.6s ease; }
-
-        /* TOAST */
-        #toast { position: fixed; bottom: 28px; right: 28px; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); font-family: var(--font-mono); font-size: 12px; padding: 12px 20px; border-radius: var(--radius); box-shadow: var(--glow); z-index: 10000; display: none; animation: slideIn 0.3s ease; }
-        @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
-
-        /* SPINNER */
-        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(0,229,255,0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
-        @keyframes spin { to { transform: rotate(360deg); } }
-
-        /* ══════════════════════════════════════
-           MISSING VALUE TOGGLE — NEW STYLES
-        ══════════════════════════════════════ */
-
-        /* Toggle Button Group */
+        /* ════════════════════════════════════════
+           MISSING VALUE ANALYSIS TOGGLE
+        ════════════════════════════════════════ */
         .mv-toggle-group {
             display: flex;
             gap: 10px;
             flex-wrap: wrap;
-            margin-bottom: 4px;
+            margin-bottom: 16px;
         }
 
         .mv-btn {
@@ -185,7 +211,6 @@
             font-weight: bold;
         }
 
-        /* Panel view title */
         .mv-view-title {
             font-family: var(--font-mono);
             font-size: 12px;
@@ -197,7 +222,6 @@
             border-bottom: 1px solid var(--border);
         }
 
-        /* Summary Chips */
         .mv-summary {
             display: flex;
             flex-wrap: wrap;
@@ -219,20 +243,69 @@
         .mv-chip.green   { border-color: var(--green);   color: var(--green); }
         .mv-chip.accent2 { border-color: var(--accent2); color: var(--accent2); }
 
-        /* Strategy block */
         .mv-block {
             background: var(--surface2);
             border: 1px solid var(--border);
             border-radius: 6px;
             padding: 16px;
+            margin-bottom: 12px;
         }
 
+        .mv-col-item {
+            padding: 12px;
+            background: rgba(0,229,255,0.05);
+            border-left: 2px solid var(--accent);
+            border-radius: 4px;
+            margin-bottom: 10px;
+        }
+
+        .mv-col-name {
+            font-family: var(--font-mono);
+            font-size: 12px;
+            color: var(--accent);
+            margin-bottom: 6px;
+        }
+
+        .mv-col-stat {
+            font-size: 11px;
+            color: var(--text-dim);
+            margin-bottom: 3px;
+        }
+
+        .mv-col-stat .val {
+            color: var(--text);
+            font-weight: bold;
+        }
+
+        /* MISSING BARS */
+        .missing-row { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; font-size: 12px; }
+        .missing-col-name { width: 160px; color: var(--text-dim); font-family: var(--font-mono); font-size: 11px; flex-shrink: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+        .missing-bar-track { flex: 1; height: 8px; background: var(--surface2); border-radius: 4px; overflow: hidden; }
+        .missing-bar-fill { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+        .missing-pct { width: 42px; text-align: right; font-family: var(--font-mono); font-size: 11px; }
+
+        /* INSIGHTS */
+        .insight-item { display: flex; align-items: flex-start; gap: 10px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; color: var(--text-dim); }
+        .insight-item:last-child { border-bottom: none; }
+        .insight-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--accent); margin-top: 5px; flex-shrink: 0; }
+
+        /* PROGRESS */
+        .progress-wrap { background: var(--surface2); border-radius: 4px; height: 6px; overflow: hidden; margin-top: 6px; }
+        .progress-fill { height: 100%; background: linear-gradient(90deg, var(--accent2), var(--accent)); border-radius: 4px; transition: width 0.6s ease; }
+
+        /* TOAST */
+        #toast { position: fixed; bottom: 28px; right: 28px; background: var(--surface); border: 1px solid var(--accent); color: var(--accent); font-family: var(--font-mono); font-size: 12px; padding: 12px 20px; border-radius: var(--radius); box-shadow: var(--glow); z-index: 10000; display: none; animation: slideIn 0.3s ease; }
+        @keyframes slideIn { from { transform: translateX(40px); opacity: 0; } to { transform: translateX(0); opacity: 1; } }
+
+        /* SPINNER */
+        .spinner { display: inline-block; width: 16px; height: 16px; border: 2px solid rgba(0,229,255,0.2); border-top-color: var(--accent); border-radius: 50%; animation: spin 0.7s linear infinite; }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
         /* RESPONSIVE */
-        @media (max-width: 1000px) {
+        @media (max-width: 1200px) {
             .shell { grid-template-columns: 1fr; }
             .sidebar { display: none; }
-            .stat-grid { grid-template-columns: repeat(2, 1fr); }
-            .chart-builder-grid { grid-template-columns: 1fr 1fr; }
+            .code-panel { display: none; }
         }
     </style>
 </head>
@@ -246,7 +319,7 @@
     <aside class="sidebar">
         <div class="sidebar-logo">
             <h1>// Data Analyzer</h1>
-            <p> EDA Platform v1.0</p>
+            <p>EDA Platform v1.0</p>
         </div>
         <div class="nav-section">
             <div class="nav-label">Upload</div>
@@ -384,13 +457,13 @@
 
                 <!-- 3 Toggle Buttons -->
                 <div class="mv-toggle-group">
-                    <button class="mv-btn active" id="btnMissingBefore">
+                    <button class="mv-btn active" id="btnMissingBefore" onclick="renderMissingPanel('before')">
                         📋 BEFORE Cleaning
                     </button>
-                    <button class="mv-btn" id="btnMissingHandling">
+                    <button class="mv-btn" id="btnMissingHandling" onclick="renderMissingPanel('handling')">
                         ⚙️ HANDLING Strategy
                     </button>
-                    <button class="mv-btn" id="btnMissingAfter">
+                    <button class="mv-btn" id="btnMissingAfter" onclick="renderMissingPanel('after')">
                         ✅ AFTER Cleaning
                     </button>
                 </div>
@@ -558,6 +631,16 @@
         </section>
 
     </main>
+
+    <!-- ===== CODE PANEL (LIVE CODE EXECUTION) ===== -->
+    <aside class="code-panel">
+        <div class="code-panel-header">📝 Live Code Execution</div>
+        <div class="code-panel-content" id="codePanelContent">
+            <div class="code-line">// Code will appear here</div>
+            <div class="code-line">// as you run analysis</div>
+        </div>
+    </aside>
+
 </div>
 
 <script src="/static/Js/script.js"></script>
